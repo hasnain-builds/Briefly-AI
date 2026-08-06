@@ -1,60 +1,126 @@
-# 🚀 Briefly AI
+<p align="center">
+  <img src="public/icon.png" width="120" alt="Briefly AI Logo" />
+</p>
 
-> AI-powered content summarization platform built with Next.js, TypeScript, Tailwind CSS and Supabase.
+<h1 align="center">🚀 Briefly AI</h1>
 
-Briefly AI helps users summarize **Text**, **PDFs**, and **Web URLs** into concise, easy-to-read summaries within seconds. The platform is designed with a modern SaaS experience, usage limits, authentication, and premium-ready architecture.
+<p align="center">
+AI-powered content summarization platform built with Next.js, TypeScript, Tailwind CSS and Supabase.
+</p>
+
+<p align="center">
+
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)
+![Gemini AI](https://img.shields.io/badge/Gemini_AI-4285F4?logo=google&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue)
+![Status](https://img.shields.io/badge/Status-Live-success)
+
+</p>
+
+<p align="center">
+<a href="https://briefly-ai-iota.vercel.app/">🌐 Live Demo</a> •
+<a href="https://github.com/hasnain-builds/Briefly-AI/issues">🐞 Report Bug</a> •
+<a href="https://github.com/hasnain-builds/Briefly-AI/issues">💡 Request Feature</a>
+</p>
 
 ---
 
-## ✨ Features
+## 🌐 Live Demo
 
-### 🤖 AI Summarization
-- 📝 Text Summaries
-- 📄 PDF Summaries
-- 🌐 URL Summaries
-- ⚡ Fast AI-powered responses
+👉 https://briefly-ai-iota.vercel.app/
 
-### 📊 Dashboard
+---
+
+# 📖 About
+
+Briefly AI is a modern AI-powered SaaS platform that transforms lengthy content into concise, easy-to-read summaries within seconds.
+
+Users can summarize:
+
+- 📝 Plain Text
+- 📄 PDF Documents
+- 🌐 Website URLs
+
+The platform is built with scalability, security, and user experience in mind while offering a clean and responsive interface across desktop, tablet, and mobile devices.
+
+---
+
+# ✨ Features
+
+## 🤖 AI Summarization
+
+- AI Text Summaries
+- PDF Summaries
+- Website URL Summaries
+- High-quality AI-generated responses
+- Reading Time Saved
+- Key Points Extraction
+- Keywords Extraction
+
+---
+
+## 📊 Dashboard
+
 - Recent Summaries
 - History
 - Favorites
-- Monthly Usage Tracking
 - Analytics
+- Monthly Usage
+- Profile Settings
 
-### 🔐 Authentication
-- Email & Password Authentication
+---
+
+## 🔐 Authentication
+
+- Email & Password Login
+- Secure Sign Up
 - Email Verification
 - Forgot Password
 - Reset Password
-- Secure Route Protection
+- Protected Routes
+- Session Management
 
-### 💎 Premium Architecture
-- Free Plan
-  - 10 Text Summaries / Month
-  - Hidden PDF Trial
-  - Hidden URL Trial
+---
 
-- Pro Plan (Coming Soon)
-  - Unlimited Text Summaries
-  - Unlimited PDF Summaries
-  - Unlimited URL Summaries
-  - Ask AI
-  - Export Features
-  - Share Features
+## 💎 Plans
 
-### ⭐ User Experience
-- Responsive Design
+### Free
+
+- 10 Text Summaries / Month
+- Limited PDF Trial
+- Limited URL Trial
+
+### Briefly AI Pro *(Coming Soon)*
+
+- Unlimited Text Summaries
+- Unlimited PDF Summaries
+- Unlimited URL Summaries
+- Ask AI
+- Export Summaries
+- Share Summaries
+- Future Premium Features
+
+---
+
+## ⭐ User Experience
+
 - Dark Mode
-- Beautiful Animations
+- Responsive Design
 - AI Feedback System
 - Terms & Privacy Consent
-- Modern SaaS UI
+- Smooth Animations
+- Premium UI
+- Mobile Optimized
 
 ---
 
 # 🛠 Tech Stack
 
-### Frontend
+## Frontend
 
 - Next.js 16
 - React
@@ -63,15 +129,19 @@ Briefly AI helps users summarize **Text**, **PDFs**, and **Web URLs** into conci
 - shadcn/ui
 - Framer Motion
 
-### Backend
+## Backend
 
 - Supabase
 - PostgreSQL
 - Row Level Security (RLS)
 
-### AI
+## AI
 
 - Google Gemini API
+
+## Deployment
+
+- Vercel
 
 ---
 
@@ -94,10 +164,10 @@ public/
 Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Briefly-AI.git
+git clone https://github.com/hasnain-builds/Briefly-AI.git
 ```
 
-Move into the project
+Navigate into the project
 
 ```bash
 cd Briefly-AI
@@ -145,47 +215,65 @@ GEMINI_API_KEY=
 
 ---
 
-# 📱 Responsive
+# 📱 Responsive Design
 
-Briefly AI is optimized for
+Briefly AI is fully optimized for:
 
-- Desktop
-- Tablet
-- Mobile Devices
+- 💻 Desktop
+- 📱 Mobile
+- 📲 Tablets
 
 ---
 
 # 🔒 Security
 
-- Secure Authentication
 - Protected Routes
-- Supabase Row Level Security
-- Server-side Usage Validation
+- Secure Authentication
+- Server-side Validation
+- Usage Limit Protection
+- Row Level Security (RLS)
 - Consent Management
 
 ---
 
 # 🗺 Roadmap
 
-- [x] AI Text Summaries
-- [x] PDF Summaries
-- [x] URL Summaries
-- [x] Authentication
-- [x] Dashboard
-- [x] Usage Limits
-- [x] Feedback System
-- [x] Terms & Privacy
-- [x] Responsive Design
-- [ ] Payment Integration
-- [ ] Briefly AI Pro
-- [ ] APK Release
-- [ ] Play Store Launch
+- ✅ AI Text Summaries
+- ✅ PDF Summaries
+- ✅ URL Summaries
+- ✅ Authentication
+- ✅ Dashboard
+- ✅ History
+- ✅ Favorites
+- ✅ Analytics
+- ✅ Monthly Usage Limits
+- ✅ Feedback System
+- ✅ Terms & Privacy Pages
+- ✅ Mobile Responsive Design
+- 🚧 Briefly AI Pro
+- 🚧 Payment Integration
+- 🚧 Android APK
+- 🚧 Play Store Release
+
+---
+
+# 🤝 Contributing
+
+Contributions are welcome!
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Commit your changes.
+4. Push your branch.
+5. Open a Pull Request.
 
 ---
 
 # 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the **MIT License**.
+
+See the **LICENSE** file for more information.
 
 ---
 
@@ -193,4 +281,15 @@ This project is licensed under the MIT License.
 
 **Hasnain Sheikh**
 
-Built with ❤️ using Next.js, Supabase and AI.
+- GitHub: https://github.com/hasnain-builds
+- Live Demo: https://briefly-ai-iota.vercel.app/
+
+---
+
+<p align="center">
+
+Made with ❤️ using Next.js, Supabase and Google Gemini AI.
+
+⭐ If you like this project, don't forget to star the repository.
+
+</p>
