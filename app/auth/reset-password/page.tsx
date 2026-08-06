@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -11,11 +10,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import { Sparkles, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Sparkles, Eye, EyeOff, Loader2 } from "lucide-react";
 
-const signupSchema = z.object({
-  full_name: z.string().min(1, "Name cannot be empty"),
-  email: z.string().min(1, "Email is required").email("Invalid email address"),
+const resetPasswordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirm_password: z.string().min(1, "Please confirm your password"),
 }).refine((data) => data.password === data.confirm_password, {
@@ -23,9 +20,9 @@ const signupSchema = z.object({
   path: ["confirm_password"],
 });
 
-type SignupFormValues = z.infer<typeof signupSchema>;
+type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
-export default function SignupPage() {
+export default function ResetPasswordPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -35,52 +32,37 @@ export default function SignupPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<SignupFormValues>({
-    resolver: zodResolver(signupSchema),
+  } = useForm<ResetPasswordFormValues>({
+    resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
-      full_name: "",
-      email: "",
       password: "",
       confirm_password: "",
     },
   });
 
-  const onSubmit = async (values: SignupFormValues) => {
+  const onSubmit = async (values: ResetPasswordFormValues) => {
     setIsLoading(true);
     try {
       const supabase = createClient();
       
-      // Perform signup passing full_name in options metadata
-      const { data, error } = await supabase.auth.signUp({
-        email: values.email,
+      const { error } = await supabase.auth.updateUser({
         password: values.password,
-        options: {
-          data: {
-            full_name: values.full_name.trim(),
-          },
-        },
       });
 
       if (error) {
-        toast.error(error.message || "An error occurred during signup");
+        toast.error(error.message || "Failed to reset password.");
         return;
       }
 
-      // If Supabase automatically logs in the user (creates a session), sign them out immediately
-      // to satisfy the requirement: "Do NOT automatically log the user in"
-      if (data?.session) {
-        await supabase.auth.signOut();
-      }
-
-      toast.success("Account created successfully! Please verify your email.");
+      toast.success("Password reset successfully! Please log in.");
       
       // Delay redirect slightly so the toast message is readable
       setTimeout(() => {
-        router.push(`/auth/verify-email?email=${encodeURIComponent(values.email)}`);
+        router.push("/auth/login");
       }, 1500);
 
     } catch (err: any) {
-      toast.error(err.message || "An unexpected error occurred");
+      toast.error(err.message || "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
     }
@@ -96,12 +78,6 @@ export default function SignupPage() {
 
       <div className="w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/40 p-6 sm:p-8 shadow-xl backdrop-blur-md relative">
         <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent" />
-        
-        {/* Back Link */}
-        <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors mb-6 group">
-          <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
-          Back to home
-        </Link>
 
         {/* Logo and Header */}
         <div className="flex items-center gap-2 mb-2">
@@ -111,45 +87,15 @@ export default function SignupPage() {
           <span className="font-bold text-lg bg-gradient-to-r from-zinc-950 to-zinc-500 dark:from-white dark:to-zinc-400 bg-clip-text text-transparent">Briefly AI</span>
         </div>
 
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Create Account</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white mt-4">Choose New Password</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400 mb-6">
-          Start using Briefly AI today.
+          Please enter your new authentication password below.
         </p>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Full Name */}
+          {/* New Password */}
           <div>
-            <label className="block text-xs font-semibold text-zinc-655 dark:text-zinc-400 mb-1.5 uppercase tracking-wider">Full Name</label>
-            <Input
-              type="text"
-              placeholder="your name"
-              disabled={isLoading}
-              className="h-10 w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3.5 py-2 outline-none text-zinc-900 dark:text-white focus-visible:border-zinc-400 dark:focus-visible:border-zinc-500 focus-visible:ring-0 focus-visible:bg-white dark:focus-visible:bg-zinc-900 text-sm transition-all"
-              {...register("full_name")}
-            />
-            {errors.full_name && (
-              <p className="mt-1 text-xs text-red-500">{errors.full_name.message}</p>
-            )}
-          </div>
-
-          {/* Email */}
-          <div>
-            <label className="block text-xs font-semibold text-zinc-655 dark:text-zinc-400 mb-1.5 uppercase tracking-wider">Email Address</label>
-            <Input
-              type="email"
-              placeholder="name@gmail.com"
-              disabled={isLoading}
-              className="h-10 w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3.5 py-2 outline-none text-zinc-900 dark:text-white focus-visible:border-zinc-400 dark:focus-visible:border-zinc-500 focus-visible:ring-0 focus-visible:bg-white dark:focus-visible:bg-zinc-900 text-sm transition-all"
-              {...register("email")}
-            />
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>
-            )}
-          </div>
-
-          {/* Password */}
-          <div>
-            <label className="block text-xs font-semibold text-zinc-655 dark:text-zinc-400 mb-1.5 uppercase tracking-wider">Password</label>
+            <label className="block text-xs font-semibold text-zinc-655 dark:text-zinc-400 mb-1.5 uppercase tracking-wider">New Password</label>
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}
@@ -202,16 +148,16 @@ export default function SignupPage() {
             disabled={isLoading}
             className="h-11 w-full rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold hover:opacity-90 active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center mt-6 shadow-md shadow-indigo-500/10"
           >
-            {isLoading ? "Creating Account..." : "Create Account"}
+            {isLoading ? (
+              <>
+                <Loader2 className="size-4 animate-spin mr-2" />
+                Updating Password...
+              </>
+            ) : (
+              "Reset Password"
+            )}
           </Button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-          Already have an account?{" "}
-          <Link href="/auth/login" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
-            Login
-          </Link>
-        </p>
       </div>
     </main>
   );
