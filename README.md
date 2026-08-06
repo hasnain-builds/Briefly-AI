@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/icon.png" width="120" alt="Briefly AI Logo" />
+  <img src="app/icon.png" width="120" alt="Briefly AI Logo" />
 </p>
 
 <h1 align="center">🚀 Briefly AI</h1>
