@@ -1,36 +1,196 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 Briefly AI
 
-## Getting Started
+> AI-powered content summarization platform built with Next.js, TypeScript, Tailwind CSS and Supabase.
 
-First, run the development server:
+Briefly AI helps users summarize **Text**, **PDFs**, and **Web URLs** into concise, easy-to-read summaries within seconds. The platform is designed with a modern SaaS experience, usage limits, authentication, and premium-ready architecture.
+
+---
+
+## ✨ Features
+
+### 🤖 AI Summarization
+- 📝 Text Summaries
+- 📄 PDF Summaries
+- 🌐 URL Summaries
+- ⚡ Fast AI-powered responses
+
+### 📊 Dashboard
+- Recent Summaries
+- History
+- Favorites
+- Monthly Usage Tracking
+- Analytics
+
+### 🔐 Authentication
+- Email & Password Authentication
+- Email Verification
+- Forgot Password
+- Reset Password
+- Secure Route Protection
+
+### 💎 Premium Architecture
+- Free Plan
+  - 10 Text Summaries / Month
+  - Hidden PDF Trial
+  - Hidden URL Trial
+
+- Pro Plan (Coming Soon)
+  - Unlimited Text Summaries
+  - Unlimited PDF Summaries
+  - Unlimited URL Summaries
+  - Ask AI
+  - Export Features
+  - Share Features
+
+### ⭐ User Experience
+- Responsive Design
+- Dark Mode
+- Beautiful Animations
+- AI Feedback System
+- Terms & Privacy Consent
+- Modern SaaS UI
+
+---
+
+# 🛠 Tech Stack
+
+### Frontend
+
+- Next.js 16
+- React
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Framer Motion
+
+### Backend
+
+- Supabase
+- PostgreSQL
+- Row Level Security (RLS)
+
+### AI
+
+- Google Gemini API
+
+---
+
+# 📂 Project Structure
+
+```text
+app/
+components/
+lib/
+services/
+supabase/
+types/
+public/
+```
+
+---
+
+# 🚀 Getting Started
+
+Clone the repository
+
+```bash
+git clone https://github.com/YOUR_USERNAME/Briefly-AI.git
+```
+
+Move into the project
+
+```bash
+cd Briefly-AI
+```
+
+Install dependencies
+
+```bash
+npm install
+```
+
+Create your environment file
+
+```bash
+cp .env.example .env.local
+```
+
+Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Build for production
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+# 🔑 Environment Variables
 
-To learn more about Next.js, take a look at the following resources:
+Create a `.env.local` file.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```env
+NEXT_PUBLIC_SUPABASE_URL=
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
-## Deploy on Vercel
+SUPABASE_SERVICE_ROLE_KEY=
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+GEMINI_API_KEY=
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+# 📱 Responsive
+
+Briefly AI is optimized for
+
+- Desktop
+- Tablet
+- Mobile Devices
+
+---
+
+# 🔒 Security
+
+- Secure Authentication
+- Protected Routes
+- Supabase Row Level Security
+- Server-side Usage Validation
+- Consent Management
+
+---
+
+# 🗺 Roadmap
+
+- [x] AI Text Summaries
+- [x] PDF Summaries
+- [x] URL Summaries
+- [x] Authentication
+- [x] Dashboard
+- [x] Usage Limits
+- [x] Feedback System
+- [x] Terms & Privacy
+- [x] Responsive Design
+- [ ] Payment Integration
+- [ ] Briefly AI Pro
+- [ ] APK Release
+- [ ] Play Store Launch
+
+---
+
+# 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+# 👨‍💻 Developer
+
+**Hasnain Sheikh**
+
+Built with ❤️ using Next.js, Supabase and AI.
