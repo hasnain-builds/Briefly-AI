@@ -1,5 +1,3 @@
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
 
 export interface URLExtractionResult {
   text: string;
@@ -67,9 +65,12 @@ export async function extractTextFromURL(url: string): Promise<URLExtractionResu
     throw new Error("Unable to read webpage content.");
   }
 
-  try {
-    const dom = new JSDOM(html, { url });
-    const document = dom.window.document;
+ try {
+  const { JSDOM } = await import("jsdom");
+  const { Readability } = await import("@mozilla/readability");
+
+  const dom = new JSDOM(html, { url });
+  const document = dom.window.document;
 
     // Remove scripts, styles, and other non-content tags before readability parser
     const tagsToRemove = ["script", "style", "noscript", "iframe", "svg"];

@@ -2,7 +2,7 @@
 
 import { generateSummaryWithAI } from "@/services/ai";
 import { createSummary, fetchRecentSummaries, removeSummary, updateFavoriteSummary, fetchAllSummaries, fetchProfileUsage, incrementUserMonthlyUsage } from "@/services/summary";
-import { extractTextFromURL, isValidUrl } from "@/services/url";
+
 
 export async function generateAndSaveSummaryAction(
   text: string, 
@@ -104,13 +104,17 @@ export async function fetchProfileUsageAction() {
 
 export async function extractTextFromURLAction(url: string) {
   try {
+    const { extractTextFromURL, isValidUrl } = await import("@/services/url");
+
     if (!isValidUrl(url)) {
       return {
         success: false,
         error: "Invalid URL. Please enter a valid http:// or https:// URL.",
       };
     }
+
     const result = await extractTextFromURL(url);
+
     return {
       success: true,
       data: result,
@@ -118,7 +122,9 @@ export async function extractTextFromURLAction(url: string) {
   } catch (error: any) {
     return {
       success: false,
-      error: error.message || "Unable to extract readable content from this website.",
+      error:
+        error.message ||
+        "Unable to extract readable content from this website.",
     };
   }
 }
