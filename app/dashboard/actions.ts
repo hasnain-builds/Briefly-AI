@@ -296,3 +296,39 @@ export async function setFeedbackReminderAction(targetSummaryCount: number) {
     return { success: false, error: error.message };
   }
 }
+
+export async function checkUserFeedbackStatusAction() {
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { success: false, feedbackCompleted: false };
+    }
+
+    // Direct check against public.feedback table
+    const { count, error: feedbackErr } = await supabase
+      .from("feedback")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if (!feedbackErr && count && count > 0) {
+      return { success: true, feedbackCompleted: true };
+    }
+
+    // Fallback check against public.profiles table
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("feedback_completed")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    return {
+      success: true,
+      feedbackCompleted: profile?.feedback_completed ?? false,
+    };
+  } catch (error: any) {
+    return { success: false, feedbackCompleted: false };
+  }
+}

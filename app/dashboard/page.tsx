@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import NextLink from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -51,7 +51,8 @@ import {
   extractTextFromURLAction,
   fetchProfileUsageAction,
   submitUserFeedbackAction,
-  setFeedbackReminderAction
+  setFeedbackReminderAction,
+  checkUserFeedbackStatusAction
 } from "./actions";
 import { SummaryRecord, UsageInfo } from "@/types";
 import { extractTextFromPDF, PDFExtractionProgress } from "@/services/pdf";
@@ -148,15 +149,84 @@ function DashboardContent() {
     remaining: 10,
   });
 
-  // Feedback states
+  // Smart Feedback Management Engine
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [hasSkippedFeedbackThisSession, setHasSkippedFeedbackThisSession] = useState(false);
+  const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasTriggeredFeedbackThisSessionRef = useRef<boolean>(false);
+
+  // Clean up feedback delay timer on unmount
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const evaluateFeedbackEligibility = useCallback((currentCount: number) => {
+    // 1. Check if feedback is already completed (DB or localStorage)
+    if (usageInfo.feedbackCompleted || (typeof window !== "undefined" && localStorage.getItem("briefly_feedback_completed") === "true")) {
+      return;
+    }
+
+    // 2. Minimum threshold: at least 3 successful summaries
+    if (currentCount < 3) {
+      return;
+    }
+
+    // 3. Single-session lock: never ask more than once per browser session
+    if (typeof window !== "undefined") {
+      if (sessionStorage.getItem("briefly_feedback_shown_session") === "true") {
+        return;
+      }
+    }
+
+    // 4. In-memory ref lock to prevent race conditions or duplicate triggers
+    if (hasTriggeredFeedbackThisSessionRef.current) {
+      return;
+    }
+
+    // 5. Cooldown check: 24-hour dismissal cooldown
+    if (typeof window !== "undefined") {
+      const dismissedAt = localStorage.getItem("briefly_feedback_dismissed_at");
+      if (dismissedAt) {
+        const elapsed = Date.now() - parseInt(dismissedAt, 10);
+        if (elapsed < 24 * 60 * 60 * 1000) {
+          return;
+        }
+      }
+    }
+
+    // 6. DB reminder threshold check
+    const remindAfter = usageInfo.feedbackRemindAfter ?? 0;
+    if (remindAfter > 0 && currentCount < remindAfter) {
+      return;
+    }
+
+    // Reached eligibility! Mark session lock & schedule natural UX delay (2.5s buffer)
+    hasTriggeredFeedbackThisSessionRef.current = true;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("briefly_feedback_shown_session", "true");
+    }
+
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+
+    feedbackTimeoutRef.current = setTimeout(() => {
+      setIsFeedbackModalOpen(true);
+    }, 2500);
+  }, [usageInfo.feedbackCompleted, usageInfo.feedbackRemindAfter]);
 
   const handleFeedbackSubmit = async (rating: number, feedbackText: string) => {
     try {
       const res = await submitUserFeedbackAction(rating, feedbackText);
       if (res.success) {
         toast.success("Thank you for helping improve Briefly AI ❤️");
+        if (typeof window !== "undefined") {
+          localStorage.setItem("briefly_feedback_completed", "true");
+        }
         setUsageInfo((prev) => ({ ...prev, feedbackCompleted: true }));
         setIsFeedbackModalOpen(false);
       } else {
@@ -168,6 +238,13 @@ function DashboardContent() {
   };
 
   const handleFeedbackRemindLater = async () => {
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("briefly_feedback_dismissed_at", Date.now().toString());
+      sessionStorage.setItem("briefly_feedback_shown_session", "true");
+    }
     setIsFeedbackModalOpen(false);
     const targetCount = summaries.length + 5;
     setUsageInfo((prev) => ({ ...prev, feedbackRemindAfter: targetCount }));
@@ -175,6 +252,13 @@ function DashboardContent() {
   };
 
   const handleFeedbackSkip = () => {
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("briefly_feedback_dismissed_at", Date.now().toString());
+      sessionStorage.setItem("briefly_feedback_shown_session", "true");
+    }
     setHasSkippedFeedbackThisSession(true);
     setIsFeedbackModalOpen(false);
   };
@@ -184,6 +268,15 @@ function DashboardContent() {
       const res = await fetchProfileUsageAction();
       if (res.success && res.data) {
         setUsageInfo(res.data);
+      }
+
+      // Authoritative database check against public.feedback table
+      const fbRes = await checkUserFeedbackStatusAction();
+      if (fbRes.success && fbRes.feedbackCompleted) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("briefly_feedback_completed", "true");
+        }
+        setUsageInfo((prev) => ({ ...prev, feedbackCompleted: true }));
       }
     } catch (err) {
       console.error("Failed to load profile usage info:", err);
@@ -476,16 +569,8 @@ function DashboardContent() {
 
       await loadSummaries();
 
-      // Smart feedback trigger
-      const currentCount = summaries.length + 1;
-      const isCompleted = usageInfo.feedbackCompleted ?? false;
-      const remindAfter = usageInfo.feedbackRemindAfter ?? 0;
-
-      if (!isCompleted && !hasSkippedFeedbackThisSession) {
-        if (remindAfter === 0 || currentCount >= remindAfter) {
-          setIsFeedbackModalOpen(true);
-        }
-      }
+      // Smart, non-intrusive feedback eligibility evaluation
+      evaluateFeedbackEligibility(summaries.length + 1);
     } catch (err: any) {
       toast.error(err.message || "An unexpected error occurred");
     } finally {

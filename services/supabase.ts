@@ -173,6 +173,8 @@ export async function getProfileUsageAndLimit(userId?: string) {
   }
 
   let profile: any = null;
+  let hasFeedbackInDb = false;
+
   try {
     const { data } = await supabase
       .from("profiles")
@@ -183,6 +185,20 @@ export async function getProfileUsageAndLimit(userId?: string) {
     profile = data;
   } catch (e) {
     console.warn("Notice: Fetch profile info warning:", e);
+  }
+
+  // Check public.feedback table directly as database source of truth
+  try {
+    const { count: feedbackCount } = await supabase
+      .from("feedback")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", targetUserId);
+
+    if (feedbackCount && feedbackCount > 0) {
+      hasFeedbackInDb = true;
+    }
+  } catch (e) {
+    // Ignore schema or network warning silently
   }
 
   const now = new Date();
@@ -240,6 +256,8 @@ export async function getProfileUsageAndLimit(userId?: string) {
   // Next reset date is the 1st of next month
   const nextMonthReset = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
+  const isFeedbackCompleted = hasFeedbackInDb || (profile?.feedback_completed ?? false);
+
   return {
     plan,
     textUsage,
@@ -252,7 +270,7 @@ export async function getProfileUsageAndLimit(userId?: string) {
     monthlyUsage: textUsage,
     monthlyLimit: textLimit,
     remaining: plan === "pro" ? null : Math.max(0, textLimit - textUsage),
-    feedbackCompleted: profile?.feedback_completed ?? false,
+    feedbackCompleted: isFeedbackCompleted,
     feedbackRemindAfter: profile?.feedback_remind_after ?? 0,
   };
 }
