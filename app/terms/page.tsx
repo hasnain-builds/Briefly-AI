@@ -80,14 +80,14 @@ export default function TermsPage() {
           <section className="space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">3. Eligibility & Age Requirement</h2>
             <p>
-              You must be at least 13 years of age (or the legal age of digital consent in your jurisdiction) to create an account or use Briefly AI. By accessing or using the Service, you represent and warrant that you meet this eligibility requirement.
+              You must be at least 18 years of age (or the legal age of digital consent in your jurisdiction) to create an account or use Briefly AI. By accessing or using the Service, you represent and warrant that you meet this eligibility requirement.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">4. User Accounts & Security</h2>
             <p>
-              To access certain features of the Service, you may be required to register for an account using Supabase Authentication. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You agree to notify us immediately of any unauthorized use of your account.
+              To access certain features of the Service, you may be required to register for an account using our secure account authentication service. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You agree to notify us immediately of any unauthorized use of your account.
             </p>
           </section>
 
@@ -113,7 +113,7 @@ export default function TermsPage() {
           <section className="space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">7. AI-Generated Summaries & Accuracy Disclaimer</h2>
             <p>
-              Briefly AI processes content using large language models (such as Google Gemini AI). AI outputs—including summaries, key takeaways, and responses—are generated probabilistically and may contain factual errors, incomplete analysis, or misinterpretations.
+              Briefly AI processes content using artificial intelligence services (such as Google Gemini). AI outputs—including summaries, key takeaways, and responses—are generated probabilistically and may contain factual errors, incomplete analysis, or misinterpretations.
             </p>
             <p className="font-semibold text-zinc-900 dark:text-zinc-100">
               AI summaries may contain inaccuracies. Users should verify important information before relying on it. Briefly AI is an AI assistance tool and does not guarantee factual accuracy.
@@ -123,7 +123,7 @@ export default function TermsPage() {
           <section className="space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">8. Third-Party Services & Links</h2>
             <p>
-              Briefly AI integrates third-party services (such as Google Gemini AI for processing and Supabase for authentication and database storage) and may contain links to third-party web articles. We do not control or assume responsibility for any third-party services, content, or privacy practices.
+              Briefly AI integrates third-party cloud services (such as artificial intelligence processing providers and cloud infrastructure services) and may contain links to third-party web articles. We do not control or assume responsibility for any third-party services, content, or privacy practices.
             </p>
           </section>
 

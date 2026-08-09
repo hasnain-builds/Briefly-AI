@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PlanGateProvider } from "@/components/shared/plan-gate";
+import { LogoutModal } from "@/components/shared/logout-modal";
 
 export interface ChatContextType {
   title: string;
@@ -195,7 +196,9 @@ export default function DashboardLayout({
     getUser();
   }, []);
 
-  const handleLogout = async () => {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  const handleConfirmLogout = async () => {
     try {
       const supabase = createClient();
       const { error } = await supabase.auth.signOut();
@@ -204,6 +207,7 @@ export default function DashboardLayout({
         return;
       }
       toast.success("Logged out successfully");
+      setIsLogoutModalOpen(false);
       router.push("/auth/login");
     } catch (err: any) {
       toast.error(err.message || "An error occurred during logout");
@@ -321,7 +325,8 @@ export default function DashboardLayout({
         {/* Logout Button */}
         <div className="border-t border-zinc-250 dark:border-zinc-800/60 pt-4 mt-auto">
           <button
-            onClick={handleLogout}
+            type="button"
+            onClick={() => setIsLogoutModalOpen(true)}
             className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200 cursor-pointer"
           >
             <LogOut className="size-4" />
@@ -329,6 +334,12 @@ export default function DashboardLayout({
           </button>
         </div>
       </aside>
+
+      <LogoutModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirmLogout={handleConfirmLogout}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">

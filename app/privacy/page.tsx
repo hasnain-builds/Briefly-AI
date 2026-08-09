@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, ArrowLeft, Lock, ShieldCheck } from "lucide-react";
+import { Sparkles, ArrowLeft, Lock } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata = {
@@ -54,39 +54,39 @@ export default function PrivacyPage() {
         <div className="space-y-8 text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
           <section className="space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">1. Information We Collect</h2>
-            <p>Briefly AI collects minimal personal data required to operate the application securely:</p>
+            <p>Briefly AI collects minimal personal information required to deliver and manage the Service:</p>
             <ul className="list-disc pl-6 space-y-1.5 text-zinc-600 dark:text-zinc-400">
-              <li><strong>Account Data:</strong> Email address and authentication credentials stored securely via Supabase Auth.</li>
-              <li><strong>Usage Content:</strong> Texts, PDF files, and URL links you explicitly submit for AI summarization.</li>
-              <li><strong>Consent Records:</strong> Legal agreement version, timestamp, and acceptance status stored in our database.</li>
+              <li><strong>Account Information:</strong> Email address and profile credentials used to create, authenticate, and securely maintain your account.</li>
+              <li><strong>Submitted Content:</strong> Texts, PDF documents, and website URLs you explicitly submit for AI summarization.</li>
+              <li><strong>Consent Records:</strong> Status, timestamp, and version records of your agreement to our Terms of Service and Privacy Policy.</li>
             </ul>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">2. Use of Essential Cookies</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">2. Use of Essential Cookies & Storage</h2>
             <p>
-              We use <strong>essential cookies only</strong> to maintain secure user sessions, remember theme preferences, and track legal consent state. We do not use third-party tracking or advertising cookies.
+              We use <strong>essential cookies and local browser storage</strong> strictly to maintain secure user sessions, remember theme preferences, and save legal consent status. We do not use third-party tracking or advertising cookies.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">3. AI Processing & Third Parties</h2>
             <p>
-              When you generate a summary, your content is processed via secure API calls to Google Gemini AI. Content submitted is used exclusively for generating your requested summary and is not used to train public models.
+              When you request a summary, the text, documents, or links you submit are securely processed by our artificial intelligence processing provider (Google Gemini) solely for the purpose of generating your requested summary and key insights. Submitted content is used exclusively to fulfill your requests and is not used to train public AI models.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">4. Data Storage & Security</h2>
             <p>
-              All database records and stored summaries are safeguarded using Row Level Security (RLS) policies in PostgreSQL on Supabase. Your data is strictly accessible only to your authenticated user account.
+              Your account details and saved content are protected using encrypted connections, secure cloud infrastructure, and access controls designed to ensure your information remains accessible only to your authenticated account.
             </p>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">5. Your Privacy Rights</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">5. Your Data & Account Controls</h2>
             <p>
-              You have the right to access, export, or delete your saved summaries and account data at any time directly through the Briefly AI dashboard settings.
+              You can view and update your profile information, manage security settings, and organize your saved summaries directly within your Briefly AI account settings.
             </p>
           </section>
 
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">6. Contact Privacy Team</h2>
             <p>
               For privacy inquiries or data requests, contact our team at{" "}
-              <a href="mailto:hasnain.builds@gmail.com" className="text-purple-500 hover:underline">
+              <a href="mailto:hasnain.builds@gmail.com" className="text-purple-500 hover:underline font-medium">
                 hasnain.builds@gmail.com
               </a>.
             </p>
@@ -107,11 +107,12 @@ export default function PrivacyPage() {
         <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p>© {new Date().getFullYear()} Briefly AI. All rights reserved.</p>
           <div className="flex gap-4">
-            <Link href="/terms" className="hover:text-zinc-900 dark:hover:text-white">Terms of Service</Link>
-            <Link href="/privacy" className="hover:text-zinc-900 dark:hover:text-white">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Terms of Service</Link>
+            <Link href="/privacy" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Privacy Policy</Link>
           </div>
         </div>
       </footer>
     </div>
   );
 }
+

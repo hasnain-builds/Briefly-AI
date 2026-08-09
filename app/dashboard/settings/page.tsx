@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { usePlanGate } from "@/components/shared/plan-gate";
+import { DeleteAccountModal } from "@/components/shared/delete-account-modal";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
@@ -200,8 +201,43 @@ export default function SettingsPage() {
     }
   };
 
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    try {
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete account");
+      }
+
+      // Clear client session
+      const supabase = createClient();
+      await supabase.auth.signOut();
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("guest_consent_state");
+      }
+
+      toast.success("Your account has been permanently deleted.");
+      setIsDeleteModalOpen(false);
+      window.location.href = "/auth/login";
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete account. Please try again.");
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl space-y-8 pb-12">
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirmDelete={handleDeleteAccount}
+      />
+
       <div className="space-y-2">
         <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-white">
           <Settings className="size-7 text-zinc-500" />
@@ -486,6 +522,43 @@ export default function SettingsPage() {
                   Dark Mode
                 </span>
               </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Danger Zone */}
+        <Card className="border border-red-200/80 bg-red-50/20 shadow-sm dark:border-red-900/40 dark:bg-red-950/10">
+          <CardHeader className="flex flex-row items-center gap-3 pb-4">
+            <div className="flex size-10 items-center justify-center rounded-full border border-red-200 bg-red-100 text-red-600 dark:border-red-900/50 dark:bg-red-950/60 dark:text-red-400">
+              <AlertTriangle className="size-5" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-semibold text-red-950 dark:text-red-200">
+                Danger Zone
+              </CardTitle>
+              <CardDescription className="text-red-700/80 dark:text-red-300/70">
+                Permanently delete your account and associated data.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex flex-col gap-4 rounded-2xl border border-red-200/60 bg-white p-4 dark:border-red-900/30 dark:bg-zinc-950 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-zinc-950 dark:text-white">
+                  Delete Account
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Permanently remove your Briefly AI profile, saved summaries, history, and favorites.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(true)}
+                variant="destructive"
+                className="h-10 rounded-full px-5 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white transition-all cursor-pointer shrink-0"
+              >
+                Delete Account
+              </Button>
             </div>
           </CardContent>
         </Card>

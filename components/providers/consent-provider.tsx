@@ -41,16 +41,30 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
   // Load consent state on mount and monitor auth state changes
   useEffect(() => {
     const supabase = createClient();
+    let isMounted = true;
+    let lastCheckedUserId: string | null | undefined = undefined;
 
     const checkConsentState = async (user: any) => {
+      const currentId = user?.id || null;
+
+      // Skip duplicate processing if already checked for this user ID
+      if (lastCheckedUserId === currentId && currentId !== null) {
+        return;
+      }
+      lastCheckedUserId = currentId;
+
+      if (!isMounted) return;
       setIsLoadingConsent(true);
-      if (user) {
+
+      if (user && user.id) {
         setUserId(user.id);
         // Attempt to sync guest consent if available in localStorage
         await syncGuestConsentToSupabase(user.id);
 
         // Fetch authoritative consent record from Supabase
         const remoteConsent = await fetchUserConsentFromSupabase(user.id);
+
+        if (!isMounted) return;
 
         if (
           remoteConsent &&
@@ -76,7 +90,7 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setUserId(null);
-        // Guest mode
+        // Guest mode - strictly check localStorage without remote calls
         const localConsent = getGuestConsentFromLocalStorage();
         if (
           localConsent &&
@@ -89,20 +103,19 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
           setHasAcceptedConsent(false);
         }
       }
-      setIsLoadingConsent(false);
+
+      if (isMounted) {
+        setIsLoadingConsent(false);
+      }
     };
 
-    // Initial user check
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      checkConsentState(user);
-    });
-
-    // Auth state change listener for real-time login/logout sync
+    // Auth state change listener handles both initial session and real-time login/logout sync
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       checkConsentState(session?.user || null);
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);

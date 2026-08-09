@@ -59,7 +59,7 @@ export function CookieConsentPopup({ onAccept, onDecline }: CookieConsentPopupPr
           We use essential cookies only for authentication, security and improving your experience.
         </p>
         <p className="text-[11px] text-zinc-400 font-medium pt-1 border-t border-white/10">
-          By continuing, you confirm that you are at least 13 years old and agree to our Terms of Service and Privacy Policy.
+          By continuing, you confirm that you are at least 18 years old and agree to our Terms of Service and Privacy Policy.
         </p>
       </div>
 
