@@ -94,8 +94,8 @@ export default function PrivacyPage() {
             <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white">6. Contact Privacy Team</h2>
             <p>
               For privacy inquiries or data requests, contact our team at{" "}
-              <a href="mailto:privacy@briefly.ai" className="text-purple-500 hover:underline">
-                privacy@briefly.ai
+              <a href="mailto:hasnain.builds@gmail.com" className="text-purple-500 hover:underline">
+                hasnain.builds@gmail.com
               </a>.
             </p>
           </section>

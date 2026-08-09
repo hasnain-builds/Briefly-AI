@@ -646,6 +646,16 @@ export default function Home() {
             </p>
           </div>
 
+          {/* Legal Links */}
+          <div className="flex items-center gap-6 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+            <Link href="/terms" className="hover:text-zinc-950 dark:hover:text-white transition-colors">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="hover:text-zinc-950 dark:hover:text-white transition-colors">
+              Privacy Policy
+            </Link>
+          </div>
+
           {/* Social Links */}
           <div className="flex items-center gap-3">
             <a
