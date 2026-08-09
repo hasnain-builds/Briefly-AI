@@ -173,32 +173,16 @@ export async function getProfileUsageAndLimit(userId?: string) {
   }
 
   let profile: any = null;
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("plan, text_usage, pdf_usage, url_usage, text_limit, pdf_limit, url_limit, monthly_usage, monthly_limit, usage_reset_at, plan_expires_at, feedback_completed, feedback_remind_after")
-    .eq("id", targetUserId)
-    .single();
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("plan, plan_expires_at, feedback_completed, feedback_remind_after")
+      .eq("id", targetUserId)
+      .maybeSingle();
 
-  if (error) {
-    if (error.code === "42703" || error.message?.includes("does not exist")) {
-      console.warn(
-        "⚠️ DATABASE MIGRATION REQUIRED: Missing usage/feedback columns in public.profiles. " +
-        "Please run 'supabase/migrations/20260806_feedback_system.sql' in Supabase SQL Editor. " +
-        "Falling back to default usage limits."
-      );
-      // Graceful fallback query for basic plan info without failing the request
-      const { data: fallbackData } = await supabase
-        .from("profiles")
-        .select("plan, plan_expires_at")
-        .eq("id", targetUserId)
-        .single();
-
-      profile = fallbackData;
-    } else if (error.code !== "PGRST116") {
-      console.error("Error fetching profile usage:", error);
-    }
-  } else {
     profile = data;
+  } catch (e) {
+    console.warn("Notice: Fetch profile info warning:", e);
   }
 
   const now = new Date();
@@ -211,40 +195,50 @@ export async function getProfileUsageAndLimit(userId?: string) {
     }
   }
 
-  let textUsage = profile?.text_usage ?? profile?.monthly_usage ?? 0;
-  let pdfUsage = profile?.pdf_usage ?? 0;
-  let urlUsage = profile?.url_usage ?? 0;
+  // Derive usage for the current billing period (current month) directly from public.summaries
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  let textLimit = plan === "pro" ? -1 : (profile?.text_limit ?? 10);
-  let pdfLimit = plan === "pro" ? -1 : (profile?.pdf_limit ?? 2);
-  let urlLimit = plan === "pro" ? -1 : (profile?.url_limit ?? 2);
+  let textUsage = 0;
+  let pdfUsage = 0;
+  let urlUsage = 0;
 
-  let resetAtStr = profile?.usage_reset_at;
-  let resetAt = resetAtStr ? new Date(resetAtStr) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  try {
+    const { count: textCount } = await supabase
+      .from("summaries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", targetUserId)
+      .or("source_type.eq.text,source_type.is.null")
+      .gte("created_at", startOfMonth);
 
-  // Auto reset if NOW >= usage_reset_at
-  if (now.getTime() >= resetAt.getTime() && profile?.usage_reset_at) {
-    const nextReset = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    textUsage = 0;
-    pdfUsage = 0;
-    urlUsage = 0;
-    resetAtStr = nextReset.toISOString();
+    textUsage = textCount ?? 0;
 
-    try {
-      await supabase
-        .from("profiles")
-        .update({
-          text_usage: 0,
-          pdf_usage: 0,
-          url_usage: 0,
-          monthly_usage: 0,
-          usage_reset_at: resetAtStr,
-        })
-        .eq("id", targetUserId);
-    } catch (resetErr) {
-      console.warn("Could not update reset date on profile:", resetErr);
-    }
+    const { count: pdfCount } = await supabase
+      .from("summaries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", targetUserId)
+      .eq("source_type", "pdf")
+      .gte("created_at", startOfMonth);
+
+    pdfUsage = pdfCount ?? 0;
+
+    const { count: urlCount } = await supabase
+      .from("summaries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", targetUserId)
+      .eq("source_type", "url")
+      .gte("created_at", startOfMonth);
+
+    urlUsage = urlCount ?? 0;
+  } catch (e) {
+    console.warn("Notice: Error counting monthly summaries from database:", e);
   }
+
+  const textLimit = plan === "pro" ? -1 : 10;
+  const pdfLimit = plan === "pro" ? -1 : 2;
+  const urlLimit = plan === "pro" ? -1 : 2;
+
+  // Next reset date is the 1st of next month
+  const nextMonthReset = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
   return {
     plan,
@@ -254,7 +248,7 @@ export async function getProfileUsageAndLimit(userId?: string) {
     pdfLimit,
     urlUsage,
     urlLimit,
-    usageResetAt: resetAtStr || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    usageResetAt: nextMonthReset,
     monthlyUsage: textUsage,
     monthlyLimit: textLimit,
     remaining: plan === "pro" ? null : Math.max(0, textLimit - textUsage),

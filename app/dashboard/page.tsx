@@ -232,6 +232,7 @@ function DashboardContent() {
   const loadSummaries = async () => {
     setIsLoadingHistory(true);
     try {
+      await loadUsage();
       const result = await fetchAllSummariesAction();
       if (result.success && result.data) {
         const loaded = result.data;
