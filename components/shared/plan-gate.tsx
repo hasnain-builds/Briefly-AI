@@ -2,12 +2,12 @@
 
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, Sparkles, X, Loader2, Lock, Wallet, ShieldCheck } from "lucide-react";
+import { Check, Sparkles, X, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { toast } from "sonner";
+import { FeatureKey } from "@/config/quotas";
+import { LimitReachedModal } from "@/components/shared/limit-reached-modal";
 
 type PlanGateContextValue = {
   openUpgradeModal: (reason?: "limit_reached" | "pro_feature", resetDate?: string) => void;
@@ -19,6 +19,19 @@ type PlanGateContextValue = {
   setPlan: (plan: "free" | "pro") => void;
   isLoadingPlan: boolean;
   upgradeToPro: () => Promise<void>;
+  
+  // Limit Reached Modal Integration
+  openLimitReachedModal: (
+    featureKey: FeatureKey,
+    resetDate?: string,
+    usedCount?: number,
+    limitCount?: number
+  ) => void;
+  closeLimitReachedModal: () => void;
+  isLimitReachedModalOpen: boolean;
+  limitFeatureKey: FeatureKey | null;
+  limitUsedCount?: number;
+  limitMaxCount?: number;
 };
 
 const PlanGateContext = createContext<PlanGateContextValue>({
@@ -31,6 +44,10 @@ const PlanGateContext = createContext<PlanGateContextValue>({
   setPlan: () => {},
   isLoadingPlan: true,
   upgradeToPro: async () => {},
+  openLimitReachedModal: () => {},
+  closeLimitReachedModal: () => {},
+  isLimitReachedModalOpen: false,
+  limitFeatureKey: null,
 });
 
 export const usePlanGate = () => useContext(PlanGateContext);
@@ -42,7 +59,12 @@ export function PlanGateProvider({ children }: { children: React.ReactNode }) {
   const [upgradeResetDate, setUpgradeResetDate] = useState<string | null>(null);
   const [plan, setPlanState] = useState<"free" | "pro">("free");
   const [isLoadingPlan, setIsLoadingPlan] = useState(true);
-  const [isUpgrading, setIsUpgrading] = useState(false);
+
+  // Limit Reached Modal State
+  const [isLimitReachedModalOpen, setIsLimitReachedModalOpen] = useState(false);
+  const [limitFeatureKey, setLimitFeatureKey] = useState<FeatureKey | null>(null);
+  const [limitUsedCount, setLimitUsedCount] = useState<number | undefined>(undefined);
+  const [limitMaxCount, setLimitMaxCount] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -83,7 +105,7 @@ export function PlanGateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isUpgradeModalOpen) {
+    if (isUpgradeModalOpen || isLimitReachedModalOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -91,7 +113,7 @@ export function PlanGateProvider({ children }: { children: React.ReactNode }) {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isUpgradeModalOpen]);
+  }, [isUpgradeModalOpen, isLimitReachedModalOpen]);
 
   const setPlan = (newPlan: "free" | "pro") => {
     setPlanState(newPlan);
@@ -109,6 +131,25 @@ export function PlanGateProvider({ children }: { children: React.ReactNode }) {
     setIsUpgradeModalOpen(false);
   };
 
+  const openLimitReachedModal = (
+    featureKey: FeatureKey,
+    resetDate?: string,
+    usedCount?: number,
+    limitCount?: number
+  ) => {
+    setLimitFeatureKey(featureKey);
+    if (resetDate) {
+      setUpgradeResetDate(resetDate);
+    }
+    setLimitUsedCount(usedCount);
+    setLimitMaxCount(limitCount);
+    setIsLimitReachedModalOpen(true);
+  };
+
+  const closeLimitReachedModal = () => {
+    setIsLimitReachedModalOpen(false);
+  };
+
   const upgradeToPro = async () => {
     setIsUpgradeModalOpen(true);
   };
@@ -124,8 +165,24 @@ export function PlanGateProvider({ children }: { children: React.ReactNode }) {
       setPlan,
       isLoadingPlan,
       upgradeToPro,
+      openLimitReachedModal,
+      closeLimitReachedModal,
+      isLimitReachedModalOpen,
+      limitFeatureKey,
+      limitUsedCount,
+      limitMaxCount,
     }),
-    [isUpgradeModalOpen, upgradeReason, upgradeResetDate, plan, isLoadingPlan]
+    [
+      isUpgradeModalOpen,
+      upgradeReason,
+      upgradeResetDate,
+      plan,
+      isLoadingPlan,
+      isLimitReachedModalOpen,
+      limitFeatureKey,
+      limitUsedCount,
+      limitMaxCount,
+    ]
   );
 
   const formattedResetDate = useMemo(() => {
@@ -142,6 +199,18 @@ export function PlanGateProvider({ children }: { children: React.ReactNode }) {
     <PlanGateContext.Provider value={value}>
       {children}
 
+      {/* Limit Reached Modal */}
+      <LimitReachedModal
+        isOpen={isLimitReachedModalOpen}
+        onClose={closeLimitReachedModal}
+        onUpgradeToPro={() => openUpgradeModal("limit_reached", upgradeResetDate || undefined)}
+        featureKey={limitFeatureKey}
+        resetDate={upgradeResetDate}
+        usedCount={limitUsedCount}
+        limitCount={limitMaxCount}
+      />
+
+      {/* Existing Pro Coming Soon Modal */}
       {isUpgradeModalOpen && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0B0B0F]/80 backdrop-blur-md p-4 sm:p-6 animate-in fade-in duration-200"
@@ -259,6 +328,7 @@ export function PlanGateProvider({ children }: { children: React.ReactNode }) {
 
 type GatedButtonProps = React.ComponentProps<typeof Button> & {
   locked?: boolean;
+  featureKey?: FeatureKey;
   badgeLabel?: string;
   tooltipText?: string;
   showLockIcon?: boolean;
@@ -266,6 +336,7 @@ type GatedButtonProps = React.ComponentProps<typeof Button> & {
 
 export function GatedButton({
   locked = false,
+  featureKey,
   badgeLabel,
   tooltipText,
   showLockIcon = true,
@@ -275,10 +346,10 @@ export function GatedButton({
   disabled,
   ...props
 }: GatedButtonProps) {
-  const { plan, openUpgradeModal } = usePlanGate();
+  const { plan, openUpgradeModal, openLimitReachedModal } = usePlanGate();
   const isLocked = locked && plan === "free";
 
-  // If locked, we don't pass native disabled so the button remains clickable to trigger the upgrade modal
+  // If locked, we don't pass native disabled so the button remains clickable to trigger modal
   const isNativelyDisabled = !isLocked && disabled;
 
   return (
@@ -290,7 +361,11 @@ export function GatedButton({
         if (isLocked) {
           event.preventDefault();
           event.stopPropagation();
-          openUpgradeModal();
+          if (featureKey) {
+            openLimitReachedModal(featureKey);
+          } else {
+            openUpgradeModal();
+          }
           return;
         }
 

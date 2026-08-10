@@ -31,9 +31,11 @@ import { toast } from "sonner";
 import { 
   fetchAllSummariesAction, 
   deleteSummaryAction, 
-  toggleFavoriteSummaryAction 
+  toggleFavoriteSummaryAction,
+  fetchProfileUsageAction,
+  incrementFeatureUsageAction
 } from "../actions";
-import { SummaryRecord } from "@/types";
+import { SummaryRecord, UsageInfo } from "@/types";
 import { exportToPDF, exportToMarkdown, exportToTxt, shareSummaryContent } from "@/lib/export";
 import { useSearch } from "../layout";
 import { GatedButton, usePlanGate } from "@/components/shared/plan-gate";
@@ -51,7 +53,7 @@ const getSummaryTitle = (summaryText: string) => {
 };
 
 export default function FavoritesPage() {
-  const { plan, openUpgradeModal } = usePlanGate();
+  const { plan, openUpgradeModal, openLimitReachedModal } = usePlanGate();
   const [summaries, setSummaries] = useState<SummaryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { searchQuery, setSearchQuery } = useSearch();
@@ -59,9 +61,51 @@ export default function FavoritesPage() {
   const [isPendingAction, setIsPendingAction] = useState(false);
   const [viewingSummary, setViewingSummary] = useState<SummaryRecord | null>(null);
 
+  // Feature usage info
+  const [usageInfo, setUsageInfo] = useState<UsageInfo>({
+    plan: "free",
+    textUsage: 0,
+    textLimit: 10,
+    pdfUsage: 0,
+    pdfLimit: 2,
+    urlUsage: 0,
+    urlLimit: 2,
+    exportPdfUsage: 0,
+    exportPdfLimit: 2,
+    exportMdUsage: 0,
+    exportMdLimit: 2,
+    exportTxtUsage: 0,
+    exportTxtLimit: 2,
+    askAiUsage: 0,
+    askAiLimit: 2,
+    shareUsage: 0,
+    shareLimit: 2,
+    monthlyUsage: 0,
+    monthlyLimit: 10,
+    usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    remaining: 10,
+  });
+
+  const isExportPdfLimitReached = plan === "free" && (usageInfo.exportPdfUsage ?? 0) >= (usageInfo.exportPdfLimit ?? 2);
+  const isExportMdLimitReached = plan === "free" && (usageInfo.exportMdUsage ?? 0) >= (usageInfo.exportMdLimit ?? 2);
+  const isExportTxtLimitReached = plan === "free" && (usageInfo.exportTxtUsage ?? 0) >= (usageInfo.exportTxtLimit ?? 2);
+  const isShareLimitReached = plan === "free" && (usageInfo.shareUsage ?? 0) >= (usageInfo.shareLimit ?? 2);
+
   useEffect(() => {
     loadSummaries();
+    loadUsage();
   }, []);
+
+  const loadUsage = async () => {
+    try {
+      const res = await fetchProfileUsageAction();
+      if (res.success && res.data) {
+        setUsageInfo(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to load usage in favorites page:", err);
+    }
+  };
 
   const loadSummaries = async () => {
     setIsLoading(true);
@@ -434,16 +478,33 @@ export default function FavoritesPage() {
                 </Button>
 
                 <GatedButton
-                  onClick={() => shareSummaryContent({
-                    title: viewingSummary.title,
-                    summary: viewingSummary.summary,
-                    page_title: viewingSummary.page_title,
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
-                    source_url: viewingSummary.source_url
-                  })}
+                  onClick={async () => {
+                    if (isShareLimitReached) {
+                      openLimitReachedModal("SHARE", usageInfo.usageResetAt);
+                      return;
+                    }
+                    try {
+                      const res = await shareSummaryContent({
+                        title: viewingSummary.title,
+                        summary: viewingSummary.summary,
+                        page_title: viewingSummary.page_title,
+                        keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
+                        source_url: viewingSummary.source_url
+                      });
+                      if (res === "copied" || res === "shared") {
+                        toast.success(res === "copied" ? "Shareable summary copied to clipboard!" : "Summary shared!");
+                        const incRes = await incrementFeatureUsageAction("SHARE");
+                        if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                      }
+                    } catch (err: any) {
+                      if (err.name !== "AbortError") toast.error("Failed to share summary.");
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isShareLimitReached}
+                  featureKey="SHARE"
+                  showLockIcon={isShareLimitReached}
                   className="h-9 text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-250 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900/50 bg-white dark:bg-zinc-900 flex items-center gap-1.5 px-3 text-xs shadow-sm"
                 >
                   <Share2 className="size-3.5" />
@@ -453,17 +514,32 @@ export default function FavoritesPage() {
 
               <div className="flex items-center gap-2">
                 <GatedButton
-                  onClick={() => exportToTxt({
-                    title: viewingSummary.title,
-                    summary: viewingSummary.summary,
-                    page_title: viewingSummary.page_title,
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
-                    keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
-                    created_at: viewingSummary.created_at
-                  })}
+                  onClick={async () => {
+                    if (isExportTxtLimitReached) {
+                      openLimitReachedModal("EXPORT_TXT", usageInfo.usageResetAt);
+                      return;
+                    }
+                    try {
+                      exportToTxt({
+                        title: viewingSummary.title,
+                        summary: viewingSummary.summary,
+                        page_title: viewingSummary.page_title,
+                        keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
+                        keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
+                        created_at: viewingSummary.created_at
+                      });
+                      toast.success("TXT exported successfully!");
+                      const incRes = await incrementFeatureUsageAction("EXPORT_TXT");
+                      if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to export TXT.");
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isExportTxtLimitReached}
+                  featureKey="EXPORT_TXT"
+                  showLockIcon={isExportTxtLimitReached}
                   className="h-9 text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-250 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900/50 bg-white dark:bg-zinc-900 flex items-center gap-1.5 px-3 text-xs shadow-sm"
                 >
                   <FileCode className="size-3.5" />
@@ -471,17 +547,32 @@ export default function FavoritesPage() {
                 </GatedButton>
 
                 <GatedButton
-                  onClick={() => exportToMarkdown({
-                    title: viewingSummary.title,
-                    summary: viewingSummary.summary,
-                    page_title: viewingSummary.page_title,
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
-                    keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
-                    created_at: viewingSummary.created_at
-                  })}
+                  onClick={async () => {
+                    if (isExportMdLimitReached) {
+                      openLimitReachedModal("EXPORT_MD", usageInfo.usageResetAt);
+                      return;
+                    }
+                    try {
+                      exportToMarkdown({
+                        title: viewingSummary.title,
+                        summary: viewingSummary.summary,
+                        page_title: viewingSummary.page_title,
+                        keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
+                        keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
+                        created_at: viewingSummary.created_at
+                      });
+                      toast.success("Markdown exported successfully!");
+                      const incRes = await incrementFeatureUsageAction("EXPORT_MD");
+                      if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to export Markdown.");
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isExportMdLimitReached}
+                  featureKey="EXPORT_MD"
+                  showLockIcon={isExportMdLimitReached}
                   className="h-9 text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-250 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900/50 bg-white dark:bg-zinc-900 flex items-center gap-1.5 px-3 text-xs shadow-sm"
                 >
                   <FileText className="size-3.5" />
@@ -489,17 +580,32 @@ export default function FavoritesPage() {
                 </GatedButton>
 
                 <GatedButton
-                  onClick={() => exportToPDF({
-                    title: viewingSummary.title,
-                    summary: viewingSummary.summary,
-                    page_title: viewingSummary.page_title,
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
-                    keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
-                    created_at: viewingSummary.created_at
-                  })}
+                  onClick={async () => {
+                    if (isExportPdfLimitReached) {
+                      openLimitReachedModal("EXPORT_PDF", usageInfo.usageResetAt);
+                      return;
+                    }
+                    try {
+                      exportToPDF({
+                        title: viewingSummary.title,
+                        summary: viewingSummary.summary,
+                        page_title: viewingSummary.page_title,
+                        keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
+                        keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
+                        created_at: viewingSummary.created_at
+                      });
+                      toast.success("PDF exported successfully!");
+                      const incRes = await incrementFeatureUsageAction("EXPORT_PDF");
+                      if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to export PDF.");
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isExportPdfLimitReached}
+                  featureKey="EXPORT_PDF"
+                  showLockIcon={isExportPdfLimitReached}
                   className="h-9 text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-250 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900/50 bg-white dark:bg-zinc-900 flex items-center gap-1.5 px-3 text-xs shadow-sm"
                 >
                   <FileDown className="size-3.5" />

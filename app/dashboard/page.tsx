@@ -52,9 +52,11 @@ import {
   fetchProfileUsageAction,
   submitUserFeedbackAction,
   setFeedbackReminderAction,
-  checkUserFeedbackStatusAction
+  checkUserFeedbackStatusAction,
+  incrementFeatureUsageAction
 } from "./actions";
 import { SummaryRecord, UsageInfo } from "@/types";
+import { FeatureKey } from "@/config/quotas";
 import { extractTextFromPDF, PDFExtractionProgress } from "@/services/pdf";
 import { exportToPDF, exportToMarkdown, exportToTxt, shareSummaryContent } from "@/lib/export";
 import { useSearch, useDashboard } from "./layout";
@@ -100,7 +102,7 @@ function DashboardContent() {
     const authSuccess = searchParams.get("auth_success");
     if (authSuccess) {
       if (authSuccess === "signup") {
-        toast.success("Welcome to Briefly AI! Your account has been created.");
+        toast.success("Welcome to Briefly AI!");
       } else {
         toast.success("Successfully logged in!");
       }
@@ -143,6 +145,16 @@ function DashboardContent() {
     pdfLimit: 2,
     urlUsage: 0,
     urlLimit: 2,
+    exportPdfUsage: 0,
+    exportPdfLimit: 2,
+    exportMdUsage: 0,
+    exportMdLimit: 2,
+    exportTxtUsage: 0,
+    exportTxtLimit: 2,
+    askAiUsage: 0,
+    askAiLimit: 2,
+    shareUsage: 0,
+    shareLimit: 2,
     monthlyUsage: 0,
     monthlyLimit: 10,
     usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -288,7 +300,17 @@ function DashboardContent() {
   }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { plan, openUpgradeModal } = usePlanGate();
+  const { plan, openUpgradeModal, openLimitReachedModal } = usePlanGate();
+
+  // Feature Quota Limit Flags
+  const isTextLimitReached = plan === "free" && usageInfo.textUsage >= (usageInfo.textLimit ?? 10);
+  const isPdfLimitReached = plan === "free" && usageInfo.pdfUsage >= (usageInfo.pdfLimit ?? 2);
+  const isUrlLimitReached = plan === "free" && usageInfo.urlUsage >= (usageInfo.urlLimit ?? 2);
+  const isExportPdfLimitReached = plan === "free" && (usageInfo.exportPdfUsage ?? 0) >= (usageInfo.exportPdfLimit ?? 2);
+  const isExportMdLimitReached = plan === "free" && (usageInfo.exportMdUsage ?? 0) >= (usageInfo.exportMdLimit ?? 2);
+  const isExportTxtLimitReached = plan === "free" && (usageInfo.exportTxtUsage ?? 0) >= (usageInfo.exportTxtLimit ?? 2);
+  const isAskAiLimitReached = plan === "free" && (usageInfo.askAiUsage ?? 0) >= (usageInfo.askAiLimit ?? 2);
+  const isShareLimitReached = plan === "free" && (usageInfo.shareUsage ?? 0) >= (usageInfo.shareLimit ?? 2);
 
   // Filter loaded summaries based on searchQuery (instant client-side search)
   const filteredSummaries = summaries.filter((item) => {
@@ -433,20 +455,24 @@ function DashboardContent() {
   const triggerNewTextSummary = () => {
     setActiveTab("text");
     setText("");
-    setSelectedFile(null);
-    setExtractedText(null as any);
-    setPdfPageCount(null);
-    setExtractionProgress(null);
     toast.success("Ready for text summary!");
   };
 
   const triggerSummarizeUrl = () => {
+    if (isUrlLimitReached) {
+      openLimitReachedModal("URL_SUMMARY", usageInfo.usageResetAt);
+      return;
+    }
     setActiveTab("url");
     setUrlInput("");
     toast.success("Ready for URL summary!");
   };
 
   const triggerUploadPdf = () => {
+    if (isPdfLimitReached) {
+      openLimitReachedModal("PDF_SUMMARY", usageInfo.usageResetAt);
+      return;
+    }
     setActiveTab("pdf");
     fileInputRef.current?.click();
   };
@@ -454,13 +480,16 @@ function DashboardContent() {
   const handleGenerateSummary = async () => {
     closeChat();
 
-    if (activeTab !== "text" && plan === "free") {
-      openUpgradeModal();
+    if (activeTab === "pdf" && isPdfLimitReached) {
+      openLimitReachedModal("PDF_SUMMARY", usageInfo.usageResetAt);
       return;
     }
-
-    if (isTextFreeLimitReached) {
-      openUpgradeModal();
+    if (activeTab === "url" && isUrlLimitReached) {
+      openLimitReachedModal("URL_SUMMARY", usageInfo.usageResetAt);
+      return;
+    }
+    if (activeTab === "text" && isTextLimitReached) {
+      openLimitReachedModal("TEXT_SUMMARY", usageInfo.usageResetAt);
       return;
     }
 
@@ -519,8 +548,9 @@ function DashboardContent() {
 
       if (!result.success || !result.data) {
         if (result.code === "LIMIT_REACHED") {
-          openUpgradeModal("limit_reached", result.usageResetAt);
-          toast.error("You've reached your monthly limit of 10 free summaries.");
+          const featKey = (result.feature as FeatureKey) || (sourceType === "pdf" ? "PDF_SUMMARY" : sourceType === "url" ? "URL_SUMMARY" : "TEXT_SUMMARY");
+          openLimitReachedModal(featKey, result.usageResetAt);
+          toast.error(result.error || "You've reached your free monthly limit.");
           return;
         }
         if (result.code === "PRO_REQUIRED") {
@@ -767,6 +797,9 @@ function DashboardContent() {
                   >
                     <FileText className="size-3.5 shrink-0 opacity-80" />
                     <span>Text</span>
+                    {isTextLimitReached && (
+                      <Lock className="size-3 text-zinc-400 opacity-80 shrink-0 ml-0.5" />
+                    )}
                   </button>
                   <button
                     type="button"
@@ -782,7 +815,7 @@ function DashboardContent() {
                   >
                     <Upload className="size-3.5 shrink-0 opacity-80" />
                     <span>PDF</span>
-                    {plan === "free" && (
+                    {isPdfLimitReached && (
                       <Lock className="size-3 text-zinc-400 opacity-80 shrink-0 ml-0.5" />
                     )}
                   </button>
@@ -800,7 +833,7 @@ function DashboardContent() {
                   >
                     <Link2 className="size-3.5 shrink-0 opacity-80" />
                     <span>URL</span>
-                    {plan === "free" && (
+                    {isUrlLimitReached && (
                       <Lock className="size-3 text-zinc-400 opacity-80 shrink-0 ml-0.5" />
                     )}
                   </button>
@@ -888,7 +921,13 @@ function DashboardContent() {
                     </div>
                   ) : (
                     <div
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => {
+                        if (isPdfLimitReached) {
+                          openLimitReachedModal("PDF_SUMMARY", usageInfo.usageResetAt);
+                          return;
+                        }
+                        fileInputRef.current?.click();
+                      }}
                       className="border border-dashed border-zinc-200 dark:border-zinc-800 hover:border-zinc-350 dark:hover:border-zinc-700 rounded-lg p-10 bg-zinc-50/50 dark:bg-zinc-900/5 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/10 flex flex-col items-center justify-center text-center space-y-4 relative min-h-[220px] cursor-pointer transition-all group shadow-sm"
                     >
                       <div className="p-4 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-550 dark:text-zinc-450 group-hover:scale-105 transition-transform shadow-sm">
@@ -896,7 +935,7 @@ function DashboardContent() {
                       </div>
                       <div className="space-y-1">
                         <h3 className="font-semibold text-zinc-900 dark:text-white">Click to Upload PDF</h3>
-                        <p className="text-xs text-zinc-500">Supported up to 20MB</p>
+                        <p className="text-xs text-zinc-500">Supported up to 10MB</p>
                       </div>
                     </div>
                   )}
@@ -906,7 +945,7 @@ function DashboardContent() {
               {activeTab === "url" && (
                 <div className="space-y-4 min-h-[220px] flex flex-col justify-center">
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450 uppercase tracking-wider">Website URL</label>
+                    <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-455 uppercase tracking-wider">Website URL</label>
                     <Input
                       type="url"
                       placeholder="https://example.com/article-url"
@@ -951,9 +990,17 @@ function DashboardContent() {
                     <GatedButton
                       type="button"
                       variant="outline"
-                      locked
+                      locked={isPdfLimitReached}
+                      featureKey="PDF_SUMMARY"
+                      showLockIcon={isPdfLimitReached}
                       className="h-10 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 text-zinc-650 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer flex items-center gap-2 disabled:opacity-50 shadow-sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => {
+                        if (isPdfLimitReached) {
+                          openLimitReachedModal("PDF_SUMMARY", usageInfo.usageResetAt);
+                          return;
+                        }
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <Upload className="size-4" />
                       Choose File
@@ -981,7 +1028,19 @@ function DashboardContent() {
                   <GatedButton
                     type="button"
                     onClick={handleGenerateSummary}
-                    locked={activeTab !== "text" || isTextFreeLimitReached}
+                    locked={
+                      (activeTab === "text" && isTextLimitReached) ||
+                      (activeTab === "pdf" && isPdfLimitReached) ||
+                      (activeTab === "url" && isUrlLimitReached)
+                    }
+                    featureKey={
+                      activeTab === "pdf" ? "PDF_SUMMARY" : activeTab === "url" ? "URL_SUMMARY" : "TEXT_SUMMARY"
+                    }
+                    showLockIcon={
+                      (activeTab === "text" && isTextLimitReached) ||
+                      (activeTab === "pdf" && isPdfLimitReached) ||
+                      (activeTab === "url" && isUrlLimitReached)
+                    }
                     disabled={isGenerating || isExtracting || (activeTab === "text" && !text.trim()) || (activeTab === "pdf" && !extractedText.trim()) || (activeTab === "url" && !urlInput.trim())}
                     className="h-10 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200 transition-colors font-semibold px-5 flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
                   >
@@ -1102,12 +1161,24 @@ function DashboardContent() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    locked
-                    onClick={() => {
+                    locked={isExportPdfLimitReached}
+                    featureKey="EXPORT_PDF"
+                    showLockIcon={isExportPdfLimitReached}
+                    onClick={async () => {
+                      if (isExportPdfLimitReached) {
+                        openLimitReachedModal("EXPORT_PDF", usageInfo.usageResetAt);
+                        return;
+                      }
                       try {
                         exportToPDF(currentSummary);
                         toast.success("PDF exported successfully!");
                         logActivity(`Exported PDF for "${currentSummary.title}"`);
+                        const incRes = await incrementFeatureUsageAction("EXPORT_PDF");
+                        if (incRes.success && incRes.data) {
+                          setUsageInfo(incRes.data);
+                        } else {
+                          loadUsage();
+                        }
                       } catch (err: any) {
                         toast.error(err.message || "Failed to export PDF.");
                       }
@@ -1122,12 +1193,24 @@ function DashboardContent() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    locked
-                    onClick={() => {
+                    locked={isExportMdLimitReached}
+                    featureKey="EXPORT_MD"
+                    showLockIcon={isExportMdLimitReached}
+                    onClick={async () => {
+                      if (isExportMdLimitReached) {
+                        openLimitReachedModal("EXPORT_MD", usageInfo.usageResetAt);
+                        return;
+                      }
                       try {
                         exportToMarkdown(currentSummary);
                         toast.success("Markdown exported successfully!");
                         logActivity(`Exported Markdown for "${currentSummary.title}"`);
+                        const incRes = await incrementFeatureUsageAction("EXPORT_MD");
+                        if (incRes.success && incRes.data) {
+                          setUsageInfo(incRes.data);
+                        } else {
+                          loadUsage();
+                        }
                       } catch (err: any) {
                         toast.error(err.message || "Failed to export Markdown.");
                       }
@@ -1142,12 +1225,24 @@ function DashboardContent() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    locked
-                    onClick={() => {
+                    locked={isExportTxtLimitReached}
+                    featureKey="EXPORT_TXT"
+                    showLockIcon={isExportTxtLimitReached}
+                    onClick={async () => {
+                      if (isExportTxtLimitReached) {
+                        openLimitReachedModal("EXPORT_TXT", usageInfo.usageResetAt);
+                        return;
+                      }
                       try {
                         exportToTxt(currentSummary);
                         toast.success("TXT exported successfully!");
                         logActivity(`Exported TXT for "${currentSummary.title}"`);
+                        const incRes = await incrementFeatureUsageAction("EXPORT_TXT");
+                        if (incRes.success && incRes.data) {
+                          setUsageInfo(incRes.data);
+                        } else {
+                          loadUsage();
+                        }
                       } catch (err: any) {
                         toast.error(err.message || "Failed to export TXT.");
                       }
@@ -1162,14 +1257,22 @@ function DashboardContent() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    locked
-                    onClick={() => openChat({
-                      title: currentSummary.title || "AI Summary",
-                      summary: currentSummary.summary,
-                      originalText: activeText || currentSummary.summary,
-                      keyPoints: currentSummary.keyPoints || [],
-                      keywords: currentSummary.keywords || []
-                    })}
+                    locked={isAskAiLimitReached}
+                    featureKey="ASK_AI"
+                    showLockIcon={isAskAiLimitReached}
+                    onClick={() => {
+                      if (isAskAiLimitReached) {
+                        openLimitReachedModal("ASK_AI", usageInfo.usageResetAt);
+                        return;
+                      }
+                      openChat({
+                        title: currentSummary.title || "AI Summary",
+                        summary: currentSummary.summary,
+                        originalText: activeText || currentSummary.summary,
+                        keyPoints: currentSummary.keyPoints || [],
+                        keywords: currentSummary.keywords || []
+                      });
+                    }}
                     className="h-9 rounded-xl border-indigo-200/80 dark:border-indigo-900/60 bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100/60 dark:hover:bg-indigo-900/40 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer flex items-center gap-1.5 text-xs font-semibold mr-auto shadow-2xs"
                   >
                     <Sparkles className="size-3.5 shrink-0" />
@@ -1180,13 +1283,25 @@ function DashboardContent() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    locked
+                    locked={isShareLimitReached}
+                    featureKey="SHARE"
+                    showLockIcon={isShareLimitReached}
                     onClick={async () => {
+                      if (isShareLimitReached) {
+                        openLimitReachedModal("SHARE", usageInfo.usageResetAt);
+                        return;
+                      }
                       try {
                         const res = await shareSummaryContent(currentSummary);
-                        if (res === "copied") {
-                          toast.success("Shareable summary copied to clipboard!");
+                        if (res === "copied" || res === "shared") {
+                          toast.success(res === "copied" ? "Shareable summary copied to clipboard!" : "Summary sharing!");
                           logActivity(`Shared Summary: "${currentSummary.title}"`);
+                          const incRes = await incrementFeatureUsageAction("SHARE");
+                          if (incRes.success && incRes.data) {
+                            setUsageInfo(incRes.data);
+                          } else {
+                            loadUsage();
+                          }
                         }
                       } catch (err: any) {
                         if (err.name !== "AbortError") {
@@ -1367,7 +1482,9 @@ function DashboardContent() {
               <GatedButton
                 onClick={triggerSummarizeUrl}
                 variant="outline"
-                locked
+                locked={isUrlLimitReached}
+                featureKey="URL_SUMMARY"
+                showLockIcon={isUrlLimitReached}
                 className="h-9 border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white justify-start text-[11px] px-2.5 cursor-pointer shadow-sm"
               >
                 <Link2 className="size-3.5 text-violet-500 mr-1.5 shrink-0" />
@@ -1376,7 +1493,9 @@ function DashboardContent() {
               <GatedButton
                 onClick={triggerUploadPdf}
                 variant="outline"
-                locked
+                locked={isPdfLimitReached}
+                featureKey="PDF_SUMMARY"
+                showLockIcon={isPdfLimitReached}
                 className="h-9 border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white justify-start text-[11px] px-2.5 cursor-pointer shadow-sm"
               >
                 <Upload className="size-3.5 text-indigo-500 mr-1.5 shrink-0" />

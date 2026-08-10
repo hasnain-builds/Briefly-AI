@@ -32,9 +32,11 @@ import { toast } from "sonner";
 import {
   fetchAllSummariesAction,
   deleteSummaryAction,
-  toggleFavoriteSummaryAction
+  toggleFavoriteSummaryAction,
+  fetchProfileUsageAction,
+  incrementFeatureUsageAction
 } from "../actions";
-import { SummaryRecord } from "@/types";
+import { SummaryRecord, UsageInfo } from "@/types";
 import { exportToPDF, exportToMarkdown, exportToTxt, shareSummaryContent } from "@/lib/export";
 import { useSearch, useDashboard } from "../layout";
 import { GatedButton, usePlanGate } from "@/components/shared/plan-gate";
@@ -53,7 +55,7 @@ const getSummaryTitle = (summaryText: string) => {
 };
 
 export default function HistoryPage() {
-  const { plan, openUpgradeModal } = usePlanGate();
+  const { plan, openUpgradeModal, openLimitReachedModal } = usePlanGate();
   const [summaries, setSummaries] = useState<SummaryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { searchQuery } = useSearch();
@@ -62,6 +64,37 @@ export default function HistoryPage() {
   const [viewingSummary, setViewingSummary] = useState<SummaryRecord | null>(null);
   const { openChat, closeChat } = useDashboard();
 
+  // Feature usage info
+  const [usageInfo, setUsageInfo] = useState<UsageInfo>({
+    plan: "free",
+    textUsage: 0,
+    textLimit: 10,
+    pdfUsage: 0,
+    pdfLimit: 2,
+    urlUsage: 0,
+    urlLimit: 2,
+    exportPdfUsage: 0,
+    exportPdfLimit: 2,
+    exportMdUsage: 0,
+    exportMdLimit: 2,
+    exportTxtUsage: 0,
+    exportTxtLimit: 2,
+    askAiUsage: 0,
+    askAiLimit: 2,
+    shareUsage: 0,
+    shareLimit: 2,
+    monthlyUsage: 0,
+    monthlyLimit: 10,
+    usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    remaining: 10,
+  });
+
+  const isExportPdfLimitReached = plan === "free" && (usageInfo.exportPdfUsage ?? 0) >= (usageInfo.exportPdfLimit ?? 2);
+  const isExportMdLimitReached = plan === "free" && (usageInfo.exportMdUsage ?? 0) >= (usageInfo.exportMdLimit ?? 2);
+  const isExportTxtLimitReached = plan === "free" && (usageInfo.exportTxtUsage ?? 0) >= (usageInfo.exportTxtLimit ?? 2);
+  const isAskAiLimitReached = plan === "free" && (usageInfo.askAiUsage ?? 0) >= (usageInfo.askAiLimit ?? 2);
+  const isShareLimitReached = plan === "free" && (usageInfo.shareUsage ?? 0) >= (usageInfo.shareLimit ?? 2);
+
   // Filter & Sorting state
   const [filterType, setFilterType] = useState<"all" | "text" | "pdf" | "url">("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
@@ -69,7 +102,19 @@ export default function HistoryPage() {
 
   useEffect(() => {
     loadSummaries();
+    loadUsage();
   }, []);
+
+  const loadUsage = async () => {
+    try {
+      const res = await fetchProfileUsageAction();
+      if (res.success && res.data) {
+        setUsageInfo(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to load usage in history page:", err);
+    }
+  };
 
   const loadSummaries = async () => {
     setIsLoading(true);
@@ -419,31 +464,37 @@ export default function HistoryPage() {
                               Copy
                             </button>
                             <button
-                              onClick={() => {
-                                if (plan === "free") {
-                                  openUpgradeModal();
+                              onClick={async () => {
+                                if (isShareLimitReached) {
+                                  openLimitReachedModal("SHARE", usageInfo.usageResetAt);
                                   setActiveDropdownId(null);
                                   return;
                                 }
-                                shareSummaryContent({
-                                  title: item.title,
-                                  summary: item.summary,
-                                  page_title: item.page_title,
-                                  keywords: Array.isArray(item.keywords) ? item.keywords : JSON.parse(item.keywords as any || "[]"),
-                                  source_url: item.source_url
-                                });
+                                try {
+                                  const res = await shareSummaryContent({
+                                    title: item.title,
+                                    summary: item.summary,
+                                    page_title: item.page_title,
+                                    keywords: Array.isArray(item.keywords) ? item.keywords : JSON.parse(item.keywords as any || "[]"),
+                                    source_url: item.source_url
+                                  });
+                                  if (res === "copied" || res === "shared") {
+                                    toast.success(res === "copied" ? "Shareable summary copied to clipboard!" : "Summary sharing!");
+                                    const incRes = await incrementFeatureUsageAction("SHARE");
+                                    if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                                  }
+                                } catch (err: any) {
+                                  if (err.name !== "AbortError") toast.error("Failed to share summary.");
+                                }
                                 setActiveDropdownId(null);
                               }}
-                              className={cn(
-                                "flex items-center justify-between w-full px-3 py-2 rounded text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 text-left transition-colors duration-200 select-none",
-                                plan === "free" ? "cursor-not-allowed" : "cursor-pointer"
-                              )}
+                              className="flex items-center justify-between w-full px-3 py-2 rounded text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 text-left transition-colors duration-200 select-none cursor-pointer"
                             >
                               <span className="flex items-center gap-2">
                                 <Share2 className="size-3.5 text-zinc-400 dark:text-zinc-500" />
                                 Share
                               </span>
-                              {plan === "free" && (
+                              {isShareLimitReached && (
                                 <span className="inline-flex items-center rounded-full bg-violet-600/10 dark:bg-violet-500/15 px-1.5 py-0.2 text-[8px] font-extrabold tracking-wide text-violet-750 dark:text-violet-300 border border-violet-200/50 dark:border-violet-500/30">
                                   PRO
                                 </span>
@@ -451,96 +502,108 @@ export default function HistoryPage() {
                             </button>
                             <div className="h-px bg-zinc-200 dark:bg-zinc-900 my-1" />
                             <button
-                              onClick={() => {
-                                if (plan === "free") {
-                                  openUpgradeModal();
+                              onClick={async () => {
+                                if (isExportPdfLimitReached) {
+                                  openLimitReachedModal("EXPORT_PDF", usageInfo.usageResetAt);
                                   setActiveDropdownId(null);
                                   return;
                                 }
-                                exportToPDF({
-                                  title: item.title,
-                                  summary: item.summary,
-                                  page_title: item.page_title,
-                                  keywords: Array.isArray(item.keywords) ? item.keywords : JSON.parse(item.keywords as any || "[]"),
-                                  keyPoints: Array.isArray(item.key_points) ? item.key_points : JSON.parse(item.key_points as any || "[]"),
-                                  created_at: item.created_at
-                                });
+                                try {
+                                  exportToPDF({
+                                    title: item.title,
+                                    summary: item.summary,
+                                    page_title: item.page_title,
+                                    keywords: Array.isArray(item.keywords) ? item.keywords : JSON.parse(item.keywords as any || "[]"),
+                                    keyPoints: Array.isArray(item.key_points) ? item.key_points : JSON.parse(item.key_points as any || "[]"),
+                                    created_at: item.created_at
+                                  });
+                                  toast.success("PDF exported successfully!");
+                                  const incRes = await incrementFeatureUsageAction("EXPORT_PDF");
+                                  if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                                } catch (err: any) {
+                                  toast.error(err.message || "Failed to export PDF.");
+                                }
                                 setActiveDropdownId(null);
                               }}
-                              className={cn(
-                                "flex items-center justify-between w-full px-3 py-2 rounded text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 text-left transition-colors duration-200 select-none",
-                                plan === "free" ? "cursor-not-allowed" : "cursor-pointer"
-                              )}
+                              className="flex items-center justify-between w-full px-3 py-2 rounded text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 text-left transition-colors duration-200 select-none cursor-pointer"
                             >
                               <span className="flex items-center gap-2">
                                 <FileDown className="size-3.5" />
                                 Export PDF
                               </span>
-                              {plan === "free" && (
+                              {isExportPdfLimitReached && (
                                 <span className="inline-flex items-center rounded-full bg-violet-600/10 dark:bg-violet-500/15 px-1.5 py-0.2 text-[8px] font-extrabold tracking-wide text-violet-750 dark:text-violet-300 border border-violet-200/50 dark:border-violet-500/30">
                                   PRO
                                 </span>
                               )}
                             </button>
                             <button
-                              onClick={() => {
-                                if (plan === "free") {
-                                  openUpgradeModal();
+                              onClick={async () => {
+                                if (isExportMdLimitReached) {
+                                  openLimitReachedModal("EXPORT_MD", usageInfo.usageResetAt);
                                   setActiveDropdownId(null);
                                   return;
                                 }
-                                exportToMarkdown({
-                                  title: item.title,
-                                  summary: item.summary,
-                                  page_title: item.page_title,
-                                  keywords: Array.isArray(item.keywords) ? item.keywords : JSON.parse(item.keywords as any || "[]"),
-                                  keyPoints: Array.isArray(item.key_points) ? item.key_points : JSON.parse(item.key_points as any || "[]"),
-                                  created_at: item.created_at
-                                });
+                                try {
+                                  exportToMarkdown({
+                                    title: item.title,
+                                    summary: item.summary,
+                                    page_title: item.page_title,
+                                    keywords: Array.isArray(item.keywords) ? item.keywords : JSON.parse(item.keywords as any || "[]"),
+                                    keyPoints: Array.isArray(item.key_points) ? item.key_points : JSON.parse(item.key_points as any || "[]"),
+                                    created_at: item.created_at
+                                  });
+                                  toast.success("Markdown exported successfully!");
+                                  const incRes = await incrementFeatureUsageAction("EXPORT_MD");
+                                  if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                                } catch (err: any) {
+                                  toast.error(err.message || "Failed to export Markdown.");
+                                }
                                 setActiveDropdownId(null);
                               }}
-                              className={cn(
-                                "flex items-center justify-between w-full px-3 py-2 rounded text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 text-left transition-colors duration-200 select-none",
-                                plan === "free" ? "cursor-not-allowed" : "cursor-pointer"
-                              )}
+                              className="flex items-center justify-between w-full px-3 py-2 rounded text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 text-left transition-colors duration-200 select-none cursor-pointer"
                             >
                               <span className="flex items-center gap-2">
                                 <FileText className="size-3.5 text-zinc-400 dark:text-zinc-500" />
                                 Export Markdown
                               </span>
-                              {plan === "free" && (
+                              {isExportMdLimitReached && (
                                 <span className="inline-flex items-center rounded-full bg-violet-600/10 dark:bg-violet-500/15 px-1.5 py-0.2 text-[8px] font-extrabold tracking-wide text-violet-755 dark:text-violet-300 border border-violet-200/50 dark:border-violet-500/30">
                                   PRO
                                 </span>
                               )}
                             </button>
                             <button
-                              onClick={() => {
-                                if (plan === "free") {
-                                  openUpgradeModal();
+                              onClick={async () => {
+                                if (isExportTxtLimitReached) {
+                                  openLimitReachedModal("EXPORT_TXT", usageInfo.usageResetAt);
                                   setActiveDropdownId(null);
                                   return;
                                 }
-                                exportToTxt({
-                                  title: item.title,
-                                  summary: item.summary,
-                                  page_title: item.page_title,
-                                  keywords: Array.isArray(item.keywords) ? item.keywords : JSON.parse(item.keywords as any || "[]"),
-                                  keyPoints: Array.isArray(item.key_points) ? item.key_points : JSON.parse(item.key_points as any || "[]"),
-                                  created_at: item.created_at
-                                });
+                                try {
+                                  exportToTxt({
+                                    title: item.title,
+                                    summary: item.summary,
+                                    page_title: item.page_title,
+                                    keywords: Array.isArray(item.keywords) ? item.keywords : JSON.parse(item.keywords as any || "[]"),
+                                    keyPoints: Array.isArray(item.key_points) ? item.key_points : JSON.parse(item.key_points as any || "[]"),
+                                    created_at: item.created_at
+                                  });
+                                  toast.success("TXT exported successfully!");
+                                  const incRes = await incrementFeatureUsageAction("EXPORT_TXT");
+                                  if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                                } catch (err: any) {
+                                  toast.error(err.message || "Failed to export TXT.");
+                                }
                                 setActiveDropdownId(null);
                               }}
-                              className={cn(
-                                "flex items-center justify-between w-full px-3 py-2 rounded text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 text-left transition-colors duration-200 select-none",
-                                plan === "free" ? "cursor-not-allowed" : "cursor-pointer"
-                              )}
+                              className="flex items-center justify-between w-full px-3 py-2 rounded text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 text-left transition-colors duration-200 select-none cursor-pointer"
                             >
                               <span className="flex items-center gap-2">
-                                <FileCode className="size-3.5 text-zinc-400 dark:text-zinc-500" />
+                                <FileDown className="size-3.5 text-zinc-400 dark:text-zinc-500" />
                                 Export TXT
                               </span>
-                              {plan === "free" && (
+                              {isExportTxtLimitReached && (
                                 <span className="inline-flex items-center rounded-full bg-violet-600/10 dark:bg-violet-500/15 px-1.5 py-0.2 text-[8px] font-extrabold tracking-wide text-violet-755 dark:text-violet-300 border border-violet-200/50 dark:border-violet-500/30">
                                   PRO
                                 </span>
@@ -672,14 +735,6 @@ export default function HistoryPage() {
               {viewingSummary.source_url && (
                 <div className="text-xs text-zinc-600 dark:text-zinc-500 bg-zinc-50 dark:bg-zinc-900/20 border border-zinc-200 dark:border-zinc-900/50 p-3 rounded-lg flex items-center justify-between">
                   <span className="truncate pr-4">Source: {viewingSummary.source_url}</span>
-                  <a
-                    href={viewingSummary.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-305 font-medium shrink-0"
-                  >
-                    Open Link
-                  </a>
                 </div>
               )}
             </CardContent>
@@ -697,16 +752,33 @@ export default function HistoryPage() {
                 </Button>
 
                 <GatedButton
-                  onClick={() => shareSummaryContent({
-                    title: viewingSummary.title,
-                    summary: viewingSummary.summary,
-                    page_title: viewingSummary.page_title,
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
-                    source_url: viewingSummary.source_url
-                  })}
+                  onClick={async () => {
+                    if (isShareLimitReached) {
+                      openLimitReachedModal("SHARE", usageInfo.usageResetAt);
+                      return;
+                    }
+                    try {
+                      const res = await shareSummaryContent({
+                        title: viewingSummary.title,
+                        summary: viewingSummary.summary,
+                        page_title: viewingSummary.page_title,
+                        keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
+                        source_url: viewingSummary.source_url
+                      });
+                      if (res === "copied" || res === "shared") {
+                        toast.success(res === "copied" ? "Shareable summary copied to clipboard!" : "Summary shared!");
+                        const incRes = await incrementFeatureUsageAction("SHARE");
+                        if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                      }
+                    } catch (err: any) {
+                      if (err.name !== "AbortError") toast.error("Failed to share summary.");
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isShareLimitReached}
+                  featureKey="SHARE"
+                  showLockIcon={isShareLimitReached}
                   className="h-9 text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-250 dark:border-zinc-800 hover:bg-zinc-105 dark:hover:bg-zinc-900 flex items-center gap-1.5 px-3 text-xs cursor-pointer shadow-sm bg-white dark:bg-zinc-900"
                 >
                   <Share2 className="size-3.5" />
@@ -714,16 +786,24 @@ export default function HistoryPage() {
                 </GatedButton>
 
                 <GatedButton
-                  onClick={() => openChat({
-                    title: viewingSummary.title || viewingSummary.page_title || "AI Summary",
-                    summary: viewingSummary.summary,
-                    originalText: viewingSummary.summary,
-                    keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]")
-                  })}
+                  onClick={() => {
+                    if (isAskAiLimitReached) {
+                      openLimitReachedModal("ASK_AI", usageInfo.usageResetAt);
+                      return;
+                    }
+                    openChat({
+                      title: viewingSummary.title || viewingSummary.page_title || "AI Summary",
+                      summary: viewingSummary.summary,
+                      originalText: viewingSummary.summary,
+                      keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
+                      keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]")
+                    });
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isAskAiLimitReached}
+                  featureKey="ASK_AI"
+                  showLockIcon={isAskAiLimitReached}
                   className="h-9 rounded-xl text-indigo-650 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-305 border border-indigo-200 dark:border-indigo-950/50 bg-indigo-50/50 dark:bg-indigo-950/20 flex items-center gap-1.5 px-3 text-xs cursor-pointer font-semibold shadow-sm"
                 >
                   <Sparkles className="size-3.5" />
@@ -733,17 +813,32 @@ export default function HistoryPage() {
 
               <div className="flex items-center gap-2">
                 <GatedButton
-                  onClick={() => exportToTxt({
-                    title: viewingSummary.title,
-                    summary: viewingSummary.summary,
-                    page_title: viewingSummary.page_title,
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
-                    keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
-                    created_at: viewingSummary.created_at
-                  })}
+                  onClick={async () => {
+                    if (isExportTxtLimitReached) {
+                      openLimitReachedModal("EXPORT_TXT", usageInfo.usageResetAt);
+                      return;
+                    }
+                    try {
+                      exportToTxt({
+                        title: viewingSummary.title,
+                        summary: viewingSummary.summary,
+                        page_title: viewingSummary.page_title,
+                        keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
+                        keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
+                        created_at: viewingSummary.created_at
+                      });
+                      toast.success("TXT exported successfully!");
+                      const incRes = await incrementFeatureUsageAction("EXPORT_TXT");
+                      if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to export TXT.");
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isExportTxtLimitReached}
+                  featureKey="EXPORT_TXT"
+                  showLockIcon={isExportTxtLimitReached}
                   className="h-9 text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-250 dark:border-zinc-800 hover:bg-zinc-105 dark:hover:bg-zinc-900 flex items-center gap-1.5 px-3 text-xs cursor-pointer shadow-sm bg-white dark:bg-zinc-900"
                 >
                   <FileCode className="size-3.5" />
@@ -751,17 +846,32 @@ export default function HistoryPage() {
                 </GatedButton>
 
                 <GatedButton
-                  onClick={() => exportToMarkdown({
-                    title: viewingSummary.title,
-                    summary: viewingSummary.summary,
-                    page_title: viewingSummary.page_title,
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
-                    keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
-                    created_at: viewingSummary.created_at
-                  })}
+                  onClick={async () => {
+                    if (isExportMdLimitReached) {
+                      openLimitReachedModal("EXPORT_MD", usageInfo.usageResetAt);
+                      return;
+                    }
+                    try {
+                      exportToMarkdown({
+                        title: viewingSummary.title,
+                        summary: viewingSummary.summary,
+                        page_title: viewingSummary.page_title,
+                        keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
+                        keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
+                        created_at: viewingSummary.created_at
+                      });
+                      toast.success("Markdown exported successfully!");
+                      const incRes = await incrementFeatureUsageAction("EXPORT_MD");
+                      if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to export Markdown.");
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isExportMdLimitReached}
+                  featureKey="EXPORT_MD"
+                  showLockIcon={isExportMdLimitReached}
                   className="h-9 text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-250 dark:border-zinc-800 hover:bg-zinc-105 dark:hover:bg-zinc-900 flex items-center gap-1.5 px-3 text-xs cursor-pointer shadow-sm bg-white dark:bg-zinc-900"
                 >
                   <FileText className="size-3.5" />
@@ -769,17 +879,32 @@ export default function HistoryPage() {
                 </GatedButton>
 
                 <GatedButton
-                  onClick={() => exportToPDF({
-                    title: viewingSummary.title,
-                    summary: viewingSummary.summary,
-                    page_title: viewingSummary.page_title,
-                    keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
-                    keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
-                    created_at: viewingSummary.created_at
-                  })}
+                  onClick={async () => {
+                    if (isExportPdfLimitReached) {
+                      openLimitReachedModal("EXPORT_PDF", usageInfo.usageResetAt);
+                      return;
+                    }
+                    try {
+                      exportToPDF({
+                        title: viewingSummary.title,
+                        summary: viewingSummary.summary,
+                        page_title: viewingSummary.page_title,
+                        keywords: Array.isArray(viewingSummary.keywords) ? viewingSummary.keywords : JSON.parse(viewingSummary.keywords as any || "[]"),
+                        keyPoints: Array.isArray(viewingSummary.key_points) ? viewingSummary.key_points : JSON.parse(viewingSummary.key_points as any || "[]"),
+                        created_at: viewingSummary.created_at
+                      });
+                      toast.success("PDF exported successfully!");
+                      const incRes = await incrementFeatureUsageAction("EXPORT_PDF");
+                      if (incRes.success && incRes.data) setUsageInfo(incRes.data);
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to export PDF.");
+                    }
+                  }}
                   variant="ghost"
                   size="sm"
-                  locked
+                  locked={isExportPdfLimitReached}
+                  featureKey="EXPORT_PDF"
+                  showLockIcon={isExportPdfLimitReached}
                   className="h-9 text-zinc-650 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-250 dark:border-zinc-800 hover:bg-zinc-105 dark:hover:bg-zinc-900 flex items-center gap-1.5 px-3 text-xs cursor-pointer shadow-sm bg-white dark:bg-zinc-900"
                 >
                   <FileDown className="size-3.5" />

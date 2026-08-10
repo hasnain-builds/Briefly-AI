@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { AppAIError, withAIRetry } from "./errors";
 
 export interface SummaryResult {
   title: string;
@@ -11,16 +12,12 @@ export interface SummaryResult {
 /**
  * Generates an AI summary, key points, keywords, and estimated reading time saved
  * using the official Google Gemini 2.5 Flash model, supporting multilingual output.
- * Never exposes the API key on the client side.
- * 
- * @param text The input text to be summarized.
- * @param outputLanguage The desired output language (e.g., "Auto Detect", "English", "Hindi", etc.)
- * @returns A promise that resolves to the SummaryResult.
+ * Protected with centralized error normalization and bounded retries.
  */
 export async function generateAISummary(text: string, outputLanguage: string = "Auto Detect"): Promise<SummaryResult> {
   const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) {
-    throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not defined in environment variables");
+    throw new AppAIError("AI_CONFIGURATION_ERROR", "GOOGLE_GENERATIVE_AI_API_KEY is not defined in environment variables");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -57,58 +54,57 @@ Return a structured JSON object:
 Text to analyze:
 ${text}`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: {
-          title: { type: "STRING" },
-          summary: { type: "STRING" },
-          keyPoints: {
-            type: "ARRAY",
-            items: { type: "STRING" },
+  return withAIRetry(async () => {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            title: { type: "STRING" },
+            summary: { type: "STRING" },
+            keyPoints: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+            },
+            keywords: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+            },
           },
-          keywords: {
-            type: "ARRAY",
-            items: { type: "STRING" },
-          },
+          required: ["title", "summary", "keyPoints", "keywords"],
         },
-        required: ["title", "summary", "keyPoints", "keywords"],
       },
-    },
-  });
+    });
 
-  const responseText = response.text;
-  if (!responseText) {
-    throw new Error("Empty response received from Gemini API");
-  }
+    const responseText = response.text;
+    if (!responseText) {
+      throw new AppAIError("AI_INVALID_RESPONSE", "Empty response received from Gemini API");
+    }
 
-  try {
-    const parsed = JSON.parse(responseText);
-    console.log("DEBUG [generateAISummary] Full parsed JSON:", parsed);
-    console.log("DEBUG [generateAISummary] parsed.title:", parsed.title);
+    try {
+      const parsed = JSON.parse(responseText);
 
-    // Compute reading time saved programmatically
-    const wordCount = text.split(/\s+/).filter(Boolean).length;
-    const originalReadingTime = Math.ceil(wordCount / 200);
-    const summaryWordCount = parsed.summary.split(/\s+/).filter(Boolean).length;
-    const summaryReadingTime = Math.max(1, Math.ceil(summaryWordCount / 200));
-    const timeSavedMin = Math.max(1, originalReadingTime - summaryReadingTime);
-    const readingTimeSaved = `${timeSavedMin} minutes`;
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      const originalReadingTime = Math.ceil(wordCount / 200);
+      const summaryWordCount = (parsed.summary || "").split(/\s+/).filter(Boolean).length;
+      const summaryReadingTime = Math.max(1, Math.ceil(summaryWordCount / 200));
+      const timeSavedMin = Math.max(1, originalReadingTime - summaryReadingTime);
+      const readingTimeSaved = `${timeSavedMin} minutes`;
 
-    return {
-      title: parsed.title,
-      summary: parsed.summary,
-      keyPoints: parsed.keyPoints,
-      keywords: parsed.keywords,
-      readingTimeSaved: readingTimeSaved,
-    };
-  } catch (err) {
-    throw new Error("Failed to parse Gemini response as structured JSON");
-  }
+      return {
+        title: parsed.title || "AI Content Summary",
+        summary: parsed.summary || "",
+        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+        keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+        readingTimeSaved,
+      };
+    } catch {
+      throw new AppAIError("AI_INVALID_RESPONSE", "Failed to parse Gemini response as structured JSON");
+    }
+  }, "generateAISummary");
 }
 
 export async function askGeminiAboutSummary(
@@ -122,7 +118,7 @@ export async function askGeminiAboutSummary(
 ): Promise<string> {
   const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) {
-    throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not defined in environment variables");
+    throw new AppAIError("AI_CONFIGURATION_ERROR", "GOOGLE_GENERATIVE_AI_API_KEY is not defined in environment variables");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -152,10 +148,16 @@ ${question}
 
 Answer:`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+  return withAIRetry(async () => {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
 
-  return response.text || "No response received.";
+    if (!response.text) {
+      throw new AppAIError("AI_INVALID_RESPONSE", "No response text received from Gemini API");
+    }
+
+    return response.text;
+  }, "askGeminiAboutSummary");
 }

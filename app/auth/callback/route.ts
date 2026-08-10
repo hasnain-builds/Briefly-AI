@@ -27,36 +27,13 @@ export async function GET(request: Request) {
     }
 
     if (session?.user) {
-      try {
-        // Query to check if profile already exists
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("id", session.user.id)
-          .single();
-
-        // If profile doesn't exist, create it (satisfies first-time signup)
-        if (!profile) {
-          const metadata = session.user.user_metadata || {};
-          const fullName = metadata.full_name || metadata.name || session.user.email?.split("@")[0] || "Google User";
-
-          const { error: insertError } = await supabase.from("profiles").insert({
-            id: session.user.id,
-            full_name: fullName,
-            plan: "free",
-            credits_used: 0,
-            created_at: new Date().toISOString(),
-          });
-
-          if (insertError) {
-            console.error("Failed to insert profile row for OAuth user:", insertError);
-          }
-          
-          return NextResponse.redirect(`${origin}/dashboard?auth_success=signup`);
-        }
-      } catch (profileErr) {
-        console.error("Error in verifying/creating profile:", profileErr);
-      }
+      // The auth.users AFTER INSERT trigger automatically creates the public.profiles row.
+      // Check if user was created in the last 10 seconds to set auth_success flag.
+      const createdAt = new Date(session.user.created_at || Date.now()).getTime();
+      const isNewUser = Date.now() - createdAt < 10000;
+      return NextResponse.redirect(
+        `${origin}/dashboard?auth_success=${isNewUser ? "signup" : "login"}`
+      );
     }
 
     return NextResponse.redirect(`${origin}/dashboard?auth_success=login`);

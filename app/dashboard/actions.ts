@@ -80,9 +80,13 @@ export async function generateAndSaveSummaryAction(
       data: savedRecord,
     };
   } catch (error: any) {
+    const { normalizeAIError } = await import("@/lib/ai/errors");
+    const normalized = normalizeAIError(error, "generateAndSaveSummaryAction");
     return {
       success: false,
-      error: error.message || "An error occurred during summarization.",
+      code: normalized.code,
+      error: normalized.message,
+      isTransient: normalized.isTransient,
     };
   }
 }
@@ -122,9 +126,7 @@ export async function extractTextFromURLAction(url: string) {
   } catch (error: any) {
     return {
       success: false,
-      error:
-        error.message ||
-        "Unable to extract readable content from this website.",
+      error: error.message || "Unable to extract readable content from this website.",
     };
   }
 }
@@ -204,24 +206,99 @@ export async function askAIAboutSummaryAction(
     }
 
     const usageInfo = await fetchProfileUsage(user.id);
-    if (usageInfo.plan !== "pro") {
+    if (usageInfo.plan === "free" && usageInfo.askAiUsage >= (usageInfo.askAiLimit ?? 2)) {
       return {
         success: false,
-        error: "Ask AI is a Briefly AI Pro feature. Please upgrade to Pro.",
-        code: "PRO_REQUIRED",
+        error: "You've reached your free monthly limit.",
+        code: "LIMIT_REACHED",
+        feature: "ASK_AI",
+        usageResetAt: usageInfo.usageResetAt,
       };
     }
 
     const { askGeminiAboutSummary } = await import("@/lib/ai/gemini");
     const response = await askGeminiAboutSummary(question, context);
+
+    // Consume credit ONLY AFTER successful AI response
+    await incrementUserMonthlyUsage(user.id, "ASK_AI");
+
     return {
       success: true,
       data: response,
     };
   } catch (error: any) {
+    const { normalizeAIError } = await import("@/lib/ai/errors");
+    const normalized = normalizeAIError(error, "askAIAboutSummaryAction");
     return {
       success: false,
-      error: error.message || "Failed to get response from AI.",
+      code: normalized.code,
+      error: normalized.message,
+      isTransient: normalized.isTransient,
+    };
+  }
+}
+
+export async function incrementFeatureUsageAction(featureKey: string) {
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const usageInfo = await fetchProfileUsage(user.id);
+    if (usageInfo.plan === "free") {
+      const feat = featureKey.toUpperCase();
+      let used = 0;
+      let limit = 2;
+
+      if (feat === "EXPORT_PDF") {
+        used = usageInfo.exportPdfUsage;
+        limit = usageInfo.exportPdfLimit ?? 2;
+      } else if (feat === "EXPORT_MD") {
+        used = usageInfo.exportMdUsage;
+        limit = usageInfo.exportMdLimit ?? 2;
+      } else if (feat === "EXPORT_TXT") {
+        used = usageInfo.exportTxtUsage;
+        limit = usageInfo.exportTxtLimit ?? 2;
+      } else if (feat === "SHARE") {
+        used = usageInfo.shareUsage;
+        limit = usageInfo.shareLimit ?? 2;
+      } else if (feat === "ASK_AI") {
+        used = usageInfo.askAiUsage;
+        limit = usageInfo.askAiLimit ?? 2;
+      } else if (feat === "PDF" || feat === "PDF_SUMMARY") {
+        used = usageInfo.pdfUsage;
+        limit = usageInfo.pdfLimit ?? 2;
+      } else if (feat === "URL" || feat === "URL_SUMMARY") {
+        used = usageInfo.urlUsage;
+        limit = usageInfo.urlLimit ?? 2;
+      } else if (feat === "TEXT" || feat === "TEXT_SUMMARY") {
+        used = usageInfo.textUsage;
+        limit = usageInfo.textLimit ?? 10;
+      }
+
+      if (used >= limit) {
+        return {
+          success: false,
+          code: "LIMIT_REACHED",
+          feature: featureKey,
+          usageResetAt: usageInfo.usageResetAt,
+        };
+      }
+    }
+
+    await incrementUserMonthlyUsage(user.id, featureKey);
+    const updatedUsage = await fetchProfileUsage(user.id);
+    return {
+      success: true,
+      data: updatedUsage,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || "Failed to increment usage.",
     };
   }
 }
